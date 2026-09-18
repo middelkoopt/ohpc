@@ -298,7 +298,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     name: Build on openEuler (${{ matrix.arch }})
     container:
-      image: ghcr.io/openhpc/ohpc-validate-openeuler:latest
+      # TEMP: SP3 image built from this PR's Containerfile, hosted on a personal
+      # ghcr until the openhpc org image is rebuilt for SP3. Revert before merge.
+      image: ghcr.io/middelkoopt/ohpc-validate-openeuler:sp3
     steps:
     - name: Update packages
       run: dnf -y update
@@ -361,7 +363,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     name: Test on openEuler (${{ matrix.arch }}/${{ matrix.compiler }})
     container:
-      image: ghcr.io/openhpc/ohpc-validate-openeuler:latest
+      # TEMP: SP3 image on personal ghcr (see build_on_openEuler). Revert before merge.
+      image: ghcr.io/middelkoopt/ohpc-validate-openeuler:sp3
       options: --privileged --security-opt seccomp=unconfined --security-opt apparmor=unconfined
     needs: build_on_openEuler
     steps:
