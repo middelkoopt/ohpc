@@ -5,23 +5,7 @@ Because the resource manager was started above, their `slurmd` finds the
 controller as soon as they come up. After the initial PXE boot, subsequent
 boots return to the default BIOS boot device.
 
-<!-- ohpc_begin -->
-<!-- ohpc_comment Set nodes to netboot and power cycle -->
-<!-- ohpc_if_set has_ipmi -->
-```bash
-# Set compute group to boot from network on next boot
-rsetboot compute net
-
-# Power cycle compute nodes
-rpower compute reset
-```
-<!-- ohpc_else -->
-<!-- ohpc_command # No BMC/IPMI available -- signal external reset handler -->
-<!-- ohpc_command for ((i=0; i<num_computes; i++)) ; do -->
-<!-- ohpc_command   echo "#<<< ohpc_reset:$i,${c_name[$i]},${c_bmc[$i]} >>>#" -->
-<!-- ohpc_command done -->
-<!-- ohpc_fi -->
-<!-- ohpc_end -->
+{% include "provisioner/xcat/power-cycle.md.j2" %}
 
 <!-- ohpc_begin -->
 <!-- ohpc_comment Allow for optional sleep to wait for provisioning to complete -->
