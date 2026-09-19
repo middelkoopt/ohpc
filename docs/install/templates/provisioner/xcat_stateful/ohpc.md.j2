@@ -1,4 +1,4 @@
-### Add OpenHPC Components to Compute Nodes
+## Add OpenHPC Components to Compute Nodes
 
 The next step is adding OpenHPC components to the *compute* nodes, which at
 this point are running basic OSes. This process leverages two xCAT-provided
@@ -9,7 +9,6 @@ and `updatenode` to distribute configuration files from the head node to the
 We first add the OpenHPC repository to the compute nodes:
 
 <!-- ohpc_begin -->
-<!-- ohpc_if [ "${xcat_mode}" = "stateful" ] -->
 <!-- ohpc_comment Setup nodes repositories and install OHPC components -->
 ```bash
 # Add OpenHPC repo
@@ -48,5 +47,4 @@ Next, we can include additional components:
 # Include modules user environment
 {{ pkg_install_chroot }} lmod-ohpc
 ```
-<!-- ohpc_fi -->
 <!-- ohpc_end -->

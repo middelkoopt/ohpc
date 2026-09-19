@@ -1,4 +1,4 @@
-### Add OpenHPC Components to the Image
+## Add OpenHPC Components to the Image
 
 The `genimage` process provides a minimal base OS configuration. Next, add
 additional components to include resource management client services and other
@@ -9,7 +9,6 @@ repositories.
 Enable the necessary package repositories inside the chroot:
 
 <!-- ohpc_begin -->
-<!-- ohpc_if [ "${xcat_mode}" = "stateless" ] -->
 <!-- ohpc_comment Enable repos and add OpenHPC components to compute image -->
 ```bash
 # Copy credential files first to ensure consistent uid/gids for slurm/munge
@@ -20,6 +19,14 @@ cp /etc/passwd /etc/group ${CHROOT}/etc
 # Copy repo files into chroot
 cp /etc/yum.repos.d/OpenHPC*.repo ${CHROOT}/etc/yum.repos.d
 cp /etc/yum.repos.d/epel*.repo    ${CHROOT}/etc/yum.repos.d
+
+# The freshly built netboot image ships with its base-OS repositories disabled,
+# so OpenHPC's dependencies do not resolve: BaseOS/AppStream packages (numactl,
+# binutils, libfabric, ...) and CRB packages (cairo-devel). Enable the base
+# repos and CRB in the chroot before installing OpenHPC components, mirroring the
+# head node and the OpenHPC 2.x stateless recipe.
+dnf --installroot="${CHROOT}" config-manager \
+    --set-enabled baseos --set-enabled appstream --set-enabled crb
 
 # Install compute node base meta-package and disable firewall
 {{ pkg_install_chroot }} ohpc-base-compute
@@ -38,17 +45,18 @@ echo SLURMD_OPTIONS="--conf-server ${sms_ip}" > ${CHROOT}/etc/sysconfig/slurmd
 # Add Network Time Protocol (NTP) support
 {{ pkg_install_chroot }} chrony
 
+# Include modules user environment
+{{ pkg_install_chroot }} lmod-ohpc
+
 # Add kernel drivers
 {{ pkg_install_chroot }} kernel
 
 # Rebuild the netboot image with the kernel installed in the compute image
-# (the head node kernel version may differ from the image kernel)
+# (the head node kernel version may differ from the image kernel). This must
+# come after all package installs: genimage resets the chroot's repo config, so
+# any dnf install after it would lose the base repos enabled above.
 kver=$(rpm -q --root ${CHROOT} kernel \
     --qf "%{VERSION}-%{RELEASE}.%{ARCH}\n" | tail -1)
 genimage ${xcat_osimage} -k ${kver}
-
-# Include modules user environment
-{{ pkg_install_chroot }} lmod-ohpc
 ```
-<!-- ohpc_fi -->
 <!-- ohpc_end -->

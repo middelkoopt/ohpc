@@ -1,4 +1,4 @@
-### Install Slurm Client on Compute Nodes
+## Install Slurm Client on Compute Nodes
 
 In an earlier section, the Slurm resource manager was installed and configured
 on the *head node*. Now install the Slurm client components on the compute
@@ -6,7 +6,6 @@ nodes and register the head node as their configuration server (Slurm
 "configless" mode):
 
 <!-- ohpc_begin -->
-<!-- ohpc_if [ "${xcat_mode}" = "stateful" ] -->
 <!-- ohpc_comment Add Slurm client support to compute nodes -->
 ```bash
 # Add Slurm client support meta-package
@@ -29,5 +28,4 @@ file synchronization so ownership and permissions are consistent now that the
 # Refresh synchronized files (passwd/group/shadow, munge key)
 updatenode compute -F
 ```
-<!-- ohpc_fi -->
 <!-- ohpc_end -->

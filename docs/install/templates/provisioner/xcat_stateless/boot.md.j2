@@ -1,4 +1,4 @@
-### Boot Compute Nodes
+## Boot Compute Nodes
 
 Boot the compute nodes; they load the packed image over the network into RAM.
 Because the resource manager was started above, their `slurmd` finds the
@@ -6,7 +6,6 @@ controller as soon as they come up. After the initial PXE boot, subsequent
 boots return to the default BIOS boot device.
 
 <!-- ohpc_begin -->
-<!-- ohpc_if [ "${xcat_mode}" = "stateless" ] -->
 <!-- ohpc_comment Set nodes to netboot and power cycle -->
 <!-- ohpc_if_set has_ipmi -->
 ```bash
@@ -27,7 +26,6 @@ rpower compute reset
 <!-- ohpc_begin -->
 <!-- ohpc_comment Allow for optional sleep to wait for provisioning to complete -->
 <!-- ohpc_command sleep "${provision_wait}" -->
-<!-- ohpc_fi -->
 <!-- ohpc_end -->
 
 The boot process typically completes in about 5 minutes. Monitor provisioning

@@ -1,0 +1,30 @@
+# xCAT stateful (diskful) provisioner configuration
+#
+# A base OS is installed onto each compute node's local disk, then OpenHPC
+# components are added to the running nodes over xdsh. Nodes keep their state
+# across reboots. Compute-environment operations act on the live compute nodes,
+# so the command forms below mirror the Confluent nodeshell pattern.
+
+provisioner: "xcat_stateful"
+provisioner_name: "xCAT"
+is_xcat: true
+is_xcat_stateful: true
+
+# copycds creates one osimage per provisioning method; the install image backs
+# a stateful deployment. Used to select and validate the image by provmethod.
+xcat_image_type: "install"
+
+# xCAT release tree to install from ("latest" tracks the current stable
+# series; set a versioned directory such as "2.18" to pin). The repo
+# definitions are written locally: the .repo files published on xcat.org
+# point at a retired "devel" tree and are not usable directly.
+xcat_release: "latest"
+xcat_repo_base: "https://xcat.org/files/xcat/repos/yum"
+# OS-family component of the xcat-dep repository path (EL10 -> rh10)
+xcat_dep_dist: "rh10"
+
+# Compute-environment package operations run on the live nodes via xdsh.
+pkg_install_chroot: "xdsh compute dnf -y install"
+pkg_group_install_chroot: "xdsh compute dnf -y groupinstall"
+pkg_upgrade_chroot: "xdsh compute dnf -y upgrade"
+pkg_clean_chroot: "xdsh compute dnf clean expire-cache"

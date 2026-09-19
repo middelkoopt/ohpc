@@ -70,7 +70,8 @@ config/
 │   ├── warewulf.yaml            # is_warewulf: true, provisioner_name: "Warewulf"
 │   ├── openchami.yaml           # is_openchami: true, provisioner_name: "OpenCHAMI"
 │   ├── confluent.yaml           # is_confluent: true, provisioner_name: "Confluent"
-│   └── xcat.yaml               # is_xcat: true, provisioner_name: "xCAT"
+│   ├── xcat_stateless.yaml     # is_xcat + is_xcat_stateless: true (netboot)
+│   └── xcat_stateful.yaml      # is_xcat + is_xcat_stateful: true (diskful)
 └── scheduler/
     └── slurm.yaml               # is_slurm: true, scheduler_name: "Slurm"
 ```
@@ -94,25 +95,27 @@ provisioners have fundamentally different workflows:
 - **Confluent**: boot nodes from Confluent → configure live nodes via nodeshell
 - **OpenCHAMI**: build layered container image (podman + yq) → cloud-init →
   boot nodes
-- **xCAT**: copycds ISO → define nodes → then one of
-  - *stateless*: genimage chroot → customize chroot → packimage → rsetboot/rpower
-  - *stateful*: install base OS to disk → configure live nodes via xdsh
+- **xCAT**: copycds ISO → define nodes → then, per provisioning mode:
+  - *stateless* (`xcat_stateless`): genimage chroot → customize chroot → packimage → rsetboot/rpower
+  - *stateful* (`xcat_stateful`): install base OS to disk → configure live nodes via xdsh
 
-xCAT is a single recipe covering both provisioning modes. Unlike the other
-differences in this document, the mode is chosen at **run time** by
-`${enable_stateful}` (from `input.local`) rather than at build time, so one
-guide and one `recipe.sh` serve both. `templates/provisioner/xcat/` holds the
-shared steps plus the mode-specific ones, named `stateless-*` and `stateful-*`
-and gated with `ohpc_if`.
+xCAT ships as **two provisioners**, `xcat_stateless` and `xcat_stateful`,
+selected at build time like any other provisioner (each recipe picks one). This
+follows the OpenHPC 2.x xCAT structure (separate `xcat` and `xcat_stateful`
+recipes sharing common includes) and keeps each guide linear. The genuinely
+shared steps live in `templates/provisioner/xcat/` (repo, install, setup,
+osimage-init, add-nodes, synclists) and are included by both provisioners'
+chapters; the mode-specific steps live in
+`templates/provisioner/xcat_stateless/` and
+`templates/provisioner/xcat_stateful/`.
 
-The mode split is confined to how the compute environment is created and when
-the nodes first boot. Everything after that is shared: a "Select Provisioning
-Mode" section defines shell functions (`compute_exec`, `compute_install`,
-`compute_group_install`, `compute_upgrade`, `compute_clean`) that act on the
-image chroot in stateless mode and on the running nodes via `xdsh` in stateful
-mode, and the shared customization chapters call those helpers unchanged. This
-is why the xCAT column of the macro table below emits a helper call rather than
-a concrete command.
+Because the mode is a build-time split, each recipe's compute-environment
+commands are concrete, with no runtime dispatch: `xcat_stateless` operates on
+the image chroot like Warewulf (`dnf --installroot`, `$CHROOT`), and
+`xcat_stateful` operates on the running nodes like Confluent (`xdsh`). Each sets
+`pkg_install_chroot` (and its siblings) in its config, so the shared
+customization chapters work unchanged, exactly as they do for Warewulf and
+Confluent.
 
 Aggregator templates use `{% include %}` to compose sections:
 
@@ -178,7 +181,7 @@ InfiniBand and OmniPath compute-side go here.
 
 **deploy-*** — Cluster booted; compute nodes provisioned; Slurm started. Scope:
 maintenance-window actions (adding/removing nodes). Most provisioners boot here;
-Confluent boots during its `provisioner-*` chapter, as does xCAT in stateful mode.
+Confluent boots during its `provisioner-*` chapter, as does `xcat_stateful`.
 
 **dev-tools** — Login-node development tools: compilers, MPI, performance tools,
 third-party libraries.
@@ -238,12 +241,16 @@ yq -i '.packages += {{ packages | tojson }}' \
 These four macros abstract all provisioner differences for compute image
 operations. Templates use them without knowing which provisioner is active:
 
-| Macro | Warewulf | Confluent | OpenCHAMI | xCAT |
-| ----- | -------- | --------- | --------- | ---- | ------------- |
-| `compute_install(packages)` | `dnf install` in chroot | `nodeshell compute dnf install` | `yq` append to packages array | `compute_install` helper (mode-selected) |
-| `compute_sed(regex, file)` | `sed -i` on `$CHROOT/file` | `nodeshell compute sed -i` | `yq` append to cmds array | `compute_exec "sed -i ..."` |
-| `compute_echo(string, file)` | `echo` to `$CHROOT/file` | `nodeshell compute echo` | `yq` append to cmds array | `compute_exec "echo ..."` |
-| `compute_run(cmd)` | `wwctl image exec` | `nodeshell compute` | `yq` append to cmds array | `compute_exec` |
+xCAT is two provisioners: `xcat_stateless` uses the chroot forms (like
+Warewulf, but `chroot $CHROOT` in place of `wwctl image exec`), and
+`xcat_stateful` uses the `xdsh` forms (like Confluent's `nodeshell`).
+
+| Macro | Warewulf | Confluent | OpenCHAMI | xCAT stateless | xCAT stateful |
+| ----- | -------- | --------- | --------- | -------------- | ------------- |
+| `compute_install(packages)` | `dnf install` in chroot | `nodeshell compute dnf install` | `yq` append to packages array | `dnf --installroot` in chroot | `xdsh compute dnf install` |
+| `compute_sed(regex, file)` | `sed -i` on `$CHROOT/file` | `nodeshell compute sed -i` | `yq` append to cmds array | `sed -i` on `$CHROOT/file` | `xdsh compute sed -i` |
+| `compute_echo(string, file)` | `echo` to `$CHROOT/file` | `nodeshell compute echo` | `yq` append to cmds array | `echo` to `$CHROOT/file` | `xdsh compute echo` |
+| `compute_run(cmd)` | `wwctl image exec` | `nodeshell compute` | `yq` append to cmds array | `chroot $CHROOT` | `xdsh compute` |
 
 `head_install(packages)` installs packages on the head node (uses
 `pkg_install`, consistent across provisioners).
@@ -533,12 +540,14 @@ docs/install/
 │   │   ├── provisioner-warewulf.md.j2
 │   │   ├── provisioner-confluent.md.j2
 │   │   ├── provisioner-openchami.md.j2
-│   │   ├── provisioner-xcat.md.j2
+│   │   ├── provisioner-xcat_stateless.md.j2
+│   │   ├── provisioner-xcat_stateful.md.j2
 │   │   ├── customize.md.j2
 │   │   ├── deploy-warewulf.md.j2
 │   │   ├── deploy-confluent.md.j2
 │   │   ├── deploy-openchami.md.j2
-│   │   ├── deploy-xcat.md.j2
+│   │   ├── deploy-xcat_stateless.md.j2
+│   │   ├── deploy-xcat_stateful.md.j2
 │   │   ├── dev-tools.md.j2
 │   │   ├── test.md.j2
 │   │   ├── post.md.j2
@@ -551,7 +560,9 @@ docs/install/
 │   │   ├── warewulf/
 │   │   ├── confluent/
 │   │   ├── openchami/
-│   │   └── xcat/
+│   │   ├── xcat/               # steps shared by both xCAT modes
+│   │   ├── xcat_stateless/
+│   │   └── xcat_stateful/
 │   ├── scheduler/
 │   │   └── slurm/
 │   ├── network/
@@ -578,8 +589,8 @@ docs/install/
 ├── recipes/                     # Recipe definitions (source only)
 │   ├── rocky10-x86_64-warewulf-slurm.conf
 │   ├── almalinux10-x86_64-warewulf-slurm.conf
-│   ├── rocky10-x86_64-xcat-slurm.conf
-│   ├── rocky10-x86_64-xcat-slurm.yaml
+│   ├── rocky10-x86_64-xcat_stateless-slurm.conf
+│   ├── rocky10-x86_64-xcat_stateless-slurm.yaml
 │   └── ...
 └── build/                       # Generated output (gitignored)
     ├── header-includes.tex      # Rendered from pandoc/header-includes.tex.j2

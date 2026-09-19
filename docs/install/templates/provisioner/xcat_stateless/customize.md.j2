@@ -1,10 +1,9 @@
-### Customize System Configuration
+## Customize System Configuration
 
 Configure NFS client mounts, time synchronization, and disable the default
 xCAT-managed export entries that conflict with the NFS exports set up earlier.
 
 <!-- ohpc_begin -->
-<!-- ohpc_if [ "${xcat_mode}" = "stateless" ] -->
 <!-- ohpc_comment Customize system configuration -->
 ```bash
 # Add NFS client mounts of /home and /opt/ohpc/pub to compute image
@@ -22,5 +21,4 @@ perl -pi -e "s|/install|#/install|"   /etc/exports
 chroot ${CHROOT} systemctl enable chronyd
 echo "server ${sms_ip} iburst" >> ${CHROOT}/etc/chrony.conf
 ```
-<!-- ohpc_fi -->
 <!-- ohpc_end -->

@@ -1,4 +1,4 @@
-### Install the Base OS onto Compute Nodes
+## Install the Base OS onto Compute Nodes
 
 In stateful mode the compute nodes are provisioned before OpenHPC components
 are added: associate the install image with the *compute* group, then boot the
@@ -14,7 +14,6 @@ registered in the xCAT `networks` table), or host a local repository mirror
 on the head node and register it on the computes instead.
 
 <!-- ohpc_begin -->
-<!-- ohpc_if [ "${xcat_mode}" = "stateful" ] -->
 <!-- ohpc_comment Associate the install image and boot the compute nodes -->
 ```bash
 # Associate provisioning image for compute group
@@ -96,7 +95,6 @@ that failed:
 <!-- ohpc_command     echo "$booted of $num_computes compute nodes ready" -->
 <!-- ohpc_command     sleep 30 -->
 <!-- ohpc_command done -->
-<!-- ohpc_fi -->
 <!-- ohpc_end -->
 
 Once installed, verify access with a parallel command across the compute nodes
