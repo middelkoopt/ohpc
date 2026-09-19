@@ -27,14 +27,18 @@ xdsh compute systemctl disable --now firewalld
 <!-- ohpc_end -->
 
 The *compute* nodes need access to the EPEL repository, a required dependency
-for OpenHPC packages.
+for OpenHPC packages. The stateful install leaves the distribution's online
+repositories disabled (xCAT serves BaseOS and AppStream from the head), so
+enable the *extras* repository -- which provides `epel-release` -- and CRB,
+which carries OpenHPC build dependencies such as `cairo-devel`, before adding
+EPEL and the OpenHPC components.
 <!-- ohpc_begin -->
-<!-- ohpc_comment Configure access to EPEL repo on compute nodes -->
+<!-- ohpc_comment Enable extras + CRB, then add EPEL repo on compute nodes -->
 ```bash
+# Enable the distro extras (epel-release) and CRB (OpenHPC deps) repos
+{{ compute_run("dnf config-manager --set-enabled extras crb") }}
 # Add EPEL repo
 {{ pkg_install_chroot }} epel-release
-# Enable CRB
-{{ compute_run("/usr/bin/crb enable") }}
 ```
 <!-- ohpc_end -->
 
