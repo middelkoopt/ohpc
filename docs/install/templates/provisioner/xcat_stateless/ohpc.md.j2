@@ -1,62 +1,39 @@
-## Add OpenHPC Components to the Image
+## Configure OpenHPC in the Compute Image
 
-The `genimage` process provides a minimal base OS configuration. Next, add
-additional components to include resource management client services and other
-packages to support the default OpenHPC environment. This process augments the
-chroot-based install and requires access to the base OS and OpenHPC
-repositories.
-
-Enable the necessary package repositories inside the chroot:
+`genimage` installed the OpenHPC core components above. The customization
+chapters that follow -- node health checks, development tools, and optional
+InfiniBand or GPU support -- install further packages into the compute image, so
+first make their repositories available inside it. The freshly built image
+carries the distro repositories disabled and neither the OpenHPC nor the EPEL
+repository, so add them to the image:
 
 <!-- ohpc_begin -->
-<!-- ohpc_comment Enable repos and add OpenHPC components to compute image -->
+<!-- ohpc_comment Make the OpenHPC, EPEL, and base OS repos available in the image -->
 ```bash
-# Copy credential files first to ensure consistent uid/gids for slurm/munge
-# at package install time. These will be kept in sync via the provisioning
-# synclist after first boot.
-cp /etc/passwd /etc/group ${CHROOT}/etc
-
-# Copy repo files into chroot
+# Copy the OpenHPC and EPEL repository definitions into the image
 cp /etc/yum.repos.d/OpenHPC*.repo ${CHROOT}/etc/yum.repos.d
 cp /etc/yum.repos.d/epel*.repo    ${CHROOT}/etc/yum.repos.d
 
-# The freshly built netboot image ships with its base-OS repositories disabled,
-# so OpenHPC's dependencies do not resolve: BaseOS/AppStream packages (numactl,
-# binutils, libfabric, ...) and CRB packages (cairo-devel). Enable the base
-# repos and CRB in the chroot before installing OpenHPC components, mirroring the
-# head node and the OpenHPC 2.x stateless recipe.
+# Enable the base OS repositories and CRB in the image (they ship disabled)
 dnf --installroot="${CHROOT}" config-manager \
     --set-enabled baseos --set-enabled appstream --set-enabled crb
+```
+<!-- ohpc_end -->
 
-# Install compute node base meta-package and disable firewall
-{{ pkg_install_chroot }} ohpc-base-compute
+With the repositories in place, configure the OpenHPC services so the compute
+nodes come up ready to join the cluster:
+
+<!-- ohpc_begin -->
+<!-- ohpc_comment Configure OpenHPC services in the compute image -->
+```bash
+# Disable the firewall in the compute image
 chroot ${CHROOT} systemctl disable firewalld
-
-# Add Slurm client support meta-package
-{{ pkg_install_chroot }} ohpc-slurm-client
 
 # Enable munge and slurmd to start on boot inside the compute image
 chroot ${CHROOT} systemctl enable munge
 chroot ${CHROOT} systemctl enable slurmd
 
-# Register Slurm server with computes (using "configless" option)
+# Register the Slurm server with the computes (configless mode)
 echo SLURMD_OPTIONS="--conf-server ${sms_ip}" > ${CHROOT}/etc/sysconfig/slurmd
-
-# Add Network Time Protocol (NTP) support
-{{ pkg_install_chroot }} chrony
-
-# Include modules user environment
-{{ pkg_install_chroot }} lmod-ohpc
-
-# Add kernel drivers
-{{ pkg_install_chroot }} kernel
-
-# Rebuild the netboot image with the kernel installed in the compute image
-# (the head node kernel version may differ from the image kernel). This must
-# come after all package installs: genimage resets the chroot's repo config, so
-# any dnf install after it would lose the base repos enabled above.
-kver=$(rpm -q --root ${CHROOT} kernel \
-    --qf "%{VERSION}-%{RELEASE}.%{ARCH}\n" | tail -1)
-genimage ${xcat_osimage} -k ${kver}
 ```
 <!-- ohpc_end -->
