@@ -3,11 +3,15 @@
 
 {% include "provisioner/deploy.md.j2" %}
 
-{# Slurm starts on the head node first so that the compute nodes, which are
-   already running, have a controller to register with. #}
+{# The Slurm controller is started on the head node first, before the compute
+   nodes are provisioned: in configless mode each node's slurmd fetches its
+   configuration from the controller as it first boots. #}
 {% include "scheduler/slurm/startup.md.j2" %}
 
-The compute nodes were installed and booted during provisioning, so only their
-client daemons need starting.
+{% include "provisioner/xcat_stateful/install.md.j2" %}
 
-{% include "provisioner/xcat_stateful/deploy.md.j2" %}
+Once provisioning is complete every compute node has installed the base OS and
+OpenHPC, run the configuration postscript, and started `munge` and `slurmd`.
+Check the nodes with `sinfo`; all should report *idle* (without an asterisk). If
+a node is shown as *unknown*, `scontrol update partition=normal state=idle` will
+clear it.

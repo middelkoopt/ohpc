@@ -1,9 +1,11 @@
 # xCAT stateful (diskful) provisioner configuration
 #
-# A base OS is installed onto each compute node's local disk, then OpenHPC
-# components are added to the running nodes over xdsh. Nodes keep their state
-# across reboots. Compute-environment operations act on the live compute nodes,
-# so the command forms below mirror the Confluent nodeshell pattern.
+# A base OS is installed onto each compute node's local disk and OpenHPC is
+# added in the same provisioning pass: the package list and configuration are
+# accumulated on the head into an otherpkgs pkglist and an xCAT postscript, which
+# xCAT applies automatically when the node installs and first boots. Nodes keep
+# their state across reboots. Compute-environment operations are therefore
+# definition-based, like OpenCHAMI (see macros.j2), not live-node like Confluent.
 
 provisioner: "xcat_stateful"
 provisioner_name: "xCAT"
@@ -23,8 +25,7 @@ xcat_repo_base: "https://xcat.org/files/xcat/repos/yum"
 # OS-family component of the xcat-dep repository path (EL10 -> rh10)
 xcat_dep_dist: "rh10"
 
-# Compute-environment package operations run on the live nodes via xdsh.
-pkg_install_chroot: "xdsh compute dnf -y install"
-pkg_group_install_chroot: "xdsh compute dnf -y groupinstall"
-pkg_upgrade_chroot: "xdsh compute dnf -y upgrade"
-pkg_clean_chroot: "xdsh compute dnf clean expire-cache"
+# Compute package/config operations are accumulated into an otherpkgs pkglist and
+# an xCAT postscript on the head (paths set as shell variables by the "Stage the
+# Compute Configuration" step) and applied by xCAT at provisioning. See the
+# is_xcat_stateful macros in macros.j2.

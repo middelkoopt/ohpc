@@ -71,22 +71,34 @@ chroot "$CHROOT" /bin/sh -c \
 {% endif %}
 
 {# xCAT stateful Macros #}
-{# Stateful (diskful) operates on the live compute nodes over xdsh, mirroring
-   the Confluent nodeshell forms. #}
+{# Stateful (diskful) is definition-based, like OpenCHAMI: rather than acting on
+   a live node, the compute package list and configuration are accumulated on the
+   head into an otherpkgs pkglist ($OHPC_OTHERPKGS) and an xCAT postscript
+   ($OHPC_POSTSCRIPT). xCAT installs and runs them automatically when the node is
+   provisioned, so there is no live-node ssh. Both files are created fresh (and
+   the shell variables exported) by the "Stage the Compute Configuration" step,
+   so a full recipe run is idempotent. Recipe variables such as ${sms_ip} are
+   expanded here, as the head writes the files. #}
 {% if is_xcat_stateful %}
 
+{%- macro compute_install(packages) -%}
+printf '%s\n' {{ packages if packages is string else packages | join(' ') }} \
+  >> "$OHPC_OTHERPKGS"
+{%- endmacro -%}
+
 {%- macro compute_sed(regex, file) -%}
-xdsh compute sed -i '{{ regex }}' \
-  "{{ file }}"
+echo "sed -i '{{ regex }}' \
+'{{ file }}'" >> "$OHPC_POSTSCRIPT"
 {%- endmacro -%}
 
 {%- macro compute_echo(string, file, append=true) -%}
-xdsh compute 'echo "{{ string }}" {{ ">>" if append else ">" }} \
-  "{{ file }}"'
+echo "echo '{{ string }}' {{ ">>" if append else ">" }} \
+'{{ file }}'" >> "$OHPC_POSTSCRIPT"
 {%- endmacro -%}
 
 {%- macro compute_run(cmd) -%}
-xdsh compute "{{ cmd }}"
+echo "{{ cmd }}" \
+  >> "$OHPC_POSTSCRIPT"
 {%- endmacro -%}
 
 {% endif %}
