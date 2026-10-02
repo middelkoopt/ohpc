@@ -19,21 +19,3 @@ dnf --installroot="${CHROOT}" config-manager \
     --set-enabled baseos --set-enabled appstream --set-enabled crb
 ```
 <!-- ohpc_end -->
-
-With the repositories in place, configure the OpenHPC services so the compute
-nodes come up ready to join the cluster:
-
-<!-- ohpc_begin -->
-<!-- ohpc_comment Configure OpenHPC services in the compute image -->
-```bash
-# Disable the firewall in the compute image
-chroot ${CHROOT} systemctl disable firewalld
-
-# Enable munge and slurmd to start on boot inside the compute image
-chroot ${CHROOT} systemctl enable munge
-chroot ${CHROOT} systemctl enable slurmd
-
-# Register the Slurm server with the computes (configless mode)
-echo SLURMD_OPTIONS="--conf-server ${sms_ip}" > ${CHROOT}/etc/sysconfig/slurmd
-```
-<!-- ohpc_end -->

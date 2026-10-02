@@ -18,48 +18,23 @@ copycds ${iso_path}/{{ distro_iso_image }}
 ISO, which encodes the minor version (for example a Rocky 10.0 x86_64 ISO
 creates `rocky10.0-x86_64-{install,netboot,statelite}-compute`). This recipe
 provisions {{ "stateless" if is_xcat_stateless else "stateful" }}, which uses
-the `{{ xcat_image_type }}` image. Query the created images and capture the
-name. If the head node already holds images for other distributions or releases
-the lookup is ambiguous, so it fails rather than guessing; set `${xcat_osimage}`
-in `input.local` to choose explicitly. Either way the image is then checked
-against `{{ xcat_image_type }}`, so a name that does not match fails before any
-node or image is modified:
+the `{{ xcat_image_type }}` image. List the images and capture that name for the
+steps that follow:
 
 <!-- ohpc_begin -->
 <!-- ohpc_comment Capture the {{ xcat_image_type }} osimage name -->
 ```bash
-# Query available images
+# List the images copycds created
 lsdef -t osimage
 
-# Capture the {{ xcat_image_type }}-compute image for this recipe. A head node
-# that holds images for several distributions or releases will match more
-# than one; rather than silently taking the first, refuse to guess and let
-# the operator name the image in input.local.
-if [ -z "${xcat_osimage:-}" ]; then
-    xcat_matches=$(lsdef -t osimage 2>/dev/null | \
-        awk '$0 ~ "{{ xcat_image_type }}-compute" {print $1}')
-    xcat_count=$(printf '%s\n' "${xcat_matches}" | grep -c . || true)
-    if [ "${xcat_count}" -ne 1 ]; then
-        echo "ERROR: expected exactly one {{ xcat_image_type }}-compute osimage," >&2
-        echo "found ${xcat_count}:" >&2
-        printf '  %s\n' ${xcat_matches} >&2
-        echo "Set xcat_osimage explicitly in input.local." >&2
-        exit 1
-    fi
-    xcat_osimage="${xcat_matches}"
-fi
-
-# Validate the image provmethod before anything is changed, whether the name was
-# discovered above or supplied in input.local. xCAT will otherwise happily
-# provision a netboot image to local disk, or the reverse.
-xcat_provmethod=$(lsdef -t osimage -o "${xcat_osimage}" -i provmethod 2>/dev/null \
-    | awk -F= '/provmethod=/{print $2}')
-if [ "${xcat_provmethod}" != "{{ xcat_image_type }}" ]; then
-    echo "ERROR: osimage '${xcat_osimage}' has provmethod='${xcat_provmethod}'," >&2
-    echo "but this {{ "stateless" if is_xcat_stateless else "stateful" }} recipe needs '{{ xcat_image_type }}'." >&2
-    echo "Set \${xcat_osimage} in input.local to the correct image." >&2
-    exit 1
-fi
+# Capture the {{ xcat_image_type }}-compute image (set xcat_osimage in input.local to choose)
+xcat_osimage=${xcat_osimage:-$(lsdef -t osimage | awk '/{{ xcat_image_type }}-compute/{print $1}')}
 echo ${xcat_osimage}
 ```
 <!-- ohpc_end -->
+
+::: {.tip}
+**Note:** The image's `provmethod` must be `{{ xcat_image_type }}` for this
+{{ "stateless" if is_xcat_stateless else "stateful" }} recipe — otherwise xCAT
+will happily provision a netboot image to local disk, or the reverse.
+:::

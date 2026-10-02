@@ -16,6 +16,7 @@ Notes on strings
 Functions:
 * compute_sed(regex, file): run `sed -i` with regex on file.
 * compute_echo(string, file, append=true): append string to file, if append=false overwrite.
+* compute_service_enable(service): enable a systemd service on the compute node (image provisioners: `enable`; live provisioners: `enable --now`).
 * pkg_install_image(packages): install packages, use array for multiple packages ["pkg1", "pkg2"]
 -->
 
@@ -26,6 +27,21 @@ Functions:
 
 {%- macro compute_install(packages) -%}
 {{ pkg_install_chroot }} {{ packages if packages is string else packages | join(' ') }}
+{%- endmacro -%}
+
+{# Enable a systemd service on the compute node, composing on compute_run. Image
+   provisioners enable it to start on next boot; live provisioners (xcat_stateful,
+   confluent) override this to add --now, because their configuration runs on the
+   node post-boot with no further reboot -- a bare enable would leave the service
+   enabled but not started, and nothing surfaces the error. #}
+{%- macro compute_service_enable(service) -%}
+{{ compute_run("systemctl enable " ~ service) }}
+{%- endmacro -%}
+
+{# Disable a systemd service on the compute node -- the --now counterpart of
+   compute_service_enable; same image-vs-live split. #}
+{%- macro compute_service_disable(service) -%}
+{{ compute_run("systemctl disable " ~ service) }}
 {%- endmacro -%}
 
 {# Warewulf Macros #}
@@ -101,6 +117,14 @@ echo "{{ cmd }}" \
   >> "$OHPC_POSTSCRIPT"
 {%- endmacro -%}
 
+{%- macro compute_service_enable(service) -%}
+{{ compute_run("systemctl enable --now " ~ service) }}
+{%- endmacro -%}
+
+{%- macro compute_service_disable(service) -%}
+{{ compute_run("systemctl disable --now " ~ service) }}
+{%- endmacro -%}
+
 {% endif %}
 
 {# Confluent Macros #}
@@ -118,6 +142,14 @@ nodeshell compute 'echo "{{ string }}" {{ ">>" if append else ">" }} \
 
 {%- macro compute_run(cmd) -%}
 nodeshell compute "{{ cmd }}"
+{%- endmacro -%}
+
+{%- macro compute_service_enable(service) -%}
+{{ compute_run("systemctl enable --now " ~ service) }}
+{%- endmacro -%}
+
+{%- macro compute_service_disable(service) -%}
+{{ compute_run("systemctl disable --now " ~ service) }}
 {%- endmacro -%}
 
 {% endif %}
