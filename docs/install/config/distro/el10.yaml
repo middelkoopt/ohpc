@@ -11,7 +11,7 @@ distro_tag: "el10"
 
 # EPEL base URL (the CRB and distro base URLs come from the distro config's
 # distro_base_url). Used to wire EPEL into the xCAT stateless image build.
-epel_base_url: "https://dl.fedoraproject.org/pub/epel/"
+epel_base_url: "https://download.fedoraproject.org/pub/epel/"
 
 # Package manager commands (dnf)
 pkg_manager: "dnf"
