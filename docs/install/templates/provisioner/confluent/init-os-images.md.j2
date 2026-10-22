@@ -35,14 +35,22 @@ osdeploy list
 ```
 
 We now update the kernel arguments to remove the `quiet` option and add serial console.
-You could also add `debug` here as well to increase debug messages.
+{% if is_aarch64 %}On aarch64 both serial devices are named: `ttyAMA0` (PL011, e.g. qemu) and
+`ttyS0` (16550, e.g. Kunpeng); the kernel skips the one the node doesn't have.
+{% endif %}You could also add `debug` here as well to increase debug messages.
 
 <!-- ohpc_begin -->
 ```bash
 # Update kernel arguments: drop quiet, add serial console
 yq -i '.kernelargs |= sub("quiet ?", "")' \
   /var/lib/confluent/public/os/${distro_id}/profile.yaml
-yq -i ".kernelargs += \" console=tty0 console={% if is_aarch64 %}ttyAMA0{% else %}ttyS0{% endif %},115200 rd.shell\"" \
+{% if is_aarch64 -%}
+yq -i ".kernelargs += \" console=tty0 console=ttyAMA0,115200\"" \
+  /var/lib/confluent/public/os/${distro_id}/profile.yaml
+yq -i ".kernelargs += \" console=ttyS0,115200 rd.shell\"" \
+{%- else -%}
+yq -i ".kernelargs += \" console=tty0 console=ttyS0,115200 rd.shell\"" \
+{%- endif %}
   /var/lib/confluent/public/os/${distro_id}/profile.yaml
 osdeploy updateboot ${distro_id}
 ```
