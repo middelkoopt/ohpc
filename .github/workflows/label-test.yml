@@ -1,0 +1,33 @@
+# TEST ONLY: does a re-run see a label added after the first run?
+name: Label test
+on:
+  pull_request:
+    branches:
+      - tm-ochami-race-base
+permissions:
+  contents: read
+  pull-requests: read
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Fail on purpose
+      run: |
+        echo "run_attempt=${{ github.run_attempt }}"
+        echo "event labels: ${{ join(github.event.pull_request.labels.*.name, ',') }}"
+        exit 1
+    - name: Event gate (as in PR 2851)
+      if: failure() && contains(github.event.pull_request.labels.*.name, 'ci-debug')
+      run: echo "EVENT-GATE-FIRED"
+    - name: Read labels from the API
+      id: labels
+      if: failure()
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        on=$(gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/labels" --jq 'any(.[]; .name == "ci-debug")')
+        echo "api ci-debug=$on"
+        echo "on=$on" >> "$GITHUB_OUTPUT"
+    - name: API gate (proposed fix)
+      if: failure() && steps.labels.outputs.on == 'true'
+      run: echo "API-GATE-FIRED"
