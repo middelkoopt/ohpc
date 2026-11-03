@@ -69,13 +69,36 @@ yq -i '.nodes[] |= (.groups += ["ipoib-" + .name])' \
 
 Now use the generated file to populate the SMD database.
 
+With {{ provisioner_name }} 0.2.0, `ochami discover static` reports a `409
+Conflict` for each BMC ("an existing component ethernet interface that has the
+same MAC address") and exits non-zero, even on an empty SMD, although every
+record is written. So check what SMD holds rather than the exit status.
+
 <!-- ohpc_begin -->
 <!-- ohpc_comment Passing ochami the nodes -->
 ```bash
 ochami discover static \
-	-f yaml -d @/opt/ohpc/admin/nodes/nodes.yaml
+	-f yaml -d @/opt/ohpc/admin/nodes/nodes.yaml \
+	|| echo "ochami discover static reported errors, checking SMD"
 ```
 <!-- ohpc_end -->
 
 `ochami discover static` populates SMD components, EthernetInterfaces (under the correct
 node xname), and group membership from the `nodes.yaml` file in a single step.
+Confirm that each compute node's interface and each BMC's endpoint are there:
+
+<!-- ohpc_begin -->
+<!-- ohpc_comment Verify the nodes are in SMD -->
+```bash
+for((i=0; i < $num_computes; i++)); do
+	ochami -k smd iface get \
+		| jq -e --arg m "${c_mac[$i]}" 'any(.[]; .MACAddress == $m)' >/dev/null \
+		|| { echo "SMD: FAILED, no interface for ${c_name[$i]}"; exit 1; }
+	ochami -k smd rfe get \
+		| jq -e --arg x "x1000c0s0b$((i+1))" 'any(.RedfishEndpoints[]; .ID == $x)' \
+		>/dev/null \
+		|| { echo "SMD: FAILED, no BMC endpoint for ${c_name[$i]}"; exit 1; }
+done
+echo "SMD: OK"
+```
+<!-- ohpc_end -->
