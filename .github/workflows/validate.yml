@@ -11,6 +11,7 @@ on:
 permissions:
   actions: write
   contents: read
+  pull-requests: read
 
 env:
   SKIP_CI_SPECS: |
@@ -308,9 +309,20 @@ jobs:
     # connects and exits, so it must not fire on an ordinary failure: a
     # two minute package mirror hiccup otherwise occupies a runner for
     # hours. Add the ci-debug label to the pull request and re-run the job
-    # when you want it.
+    # when you want it. The labels are read from the API: a re-run keeps
+    # the event of the first run, so github.event never shows a label
+    # added after it.
+    - name: Check for the ci-debug label
+      id: ci_debug
+      if: failure() && github.event_name == 'pull_request'
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: >-
+        echo "on=$(gh api
+        "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/labels"
+        --jq 'any(.[]; .name == "ci-debug")')" >> "$GITHUB_OUTPUT"
     - name: Debug via SSH
-      if: failure() && contains(github.event.pull_request.labels.*.name, 'ci-debug')
+      if: failure() && steps.ci_debug.outputs.on == 'true'
       timeout-minutes: 30
       uses: mxschmitt/action-tmate@v3
       with:
