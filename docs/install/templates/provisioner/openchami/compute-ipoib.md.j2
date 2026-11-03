@@ -12,8 +12,7 @@ up when the interface appears. Each node joins its group when it is discovered
 for ((i=0; i<num_computes; i++)) ; do
 	gf=/opt/ohpc/admin/cloud-init/ipoib-${c_name[$i]}.yaml
 	cat > "${gf}" <<EOF
-metadata:
-  name: ipoib-${c_name[$i]}
+name: ipoib-${c_name[$i]}
 description: "IPoIB on ${c_name[$i]}"
 template: |
   #cloud-config

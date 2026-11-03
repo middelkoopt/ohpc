@@ -9,7 +9,7 @@ First, confirm that boot-service has the correct kernel parameters stored:
 <!-- ohpc_begin -->
 <!-- ohpc_comment Verify boot-service boot config is uploaded -->
 ```bash
-ochami -k boot config get -F yaml \
+ochami -k boot config list -F yaml \
 	| grep -q "ds=nocloud-net" \
 	&& echo "boot-service: OK" \
 	|| { echo "boot-service: FAILED - check boot config"; exit 1; }
@@ -22,7 +22,7 @@ successfully:
 <!-- ohpc_begin -->
 <!-- ohpc_comment Verify cloud-init defaults are uploaded -->
 ```bash
-ochami -k metadata defaults get \
+ochami -k metadata defaults list -F yaml \
 	| grep -q "base_url" \
 	&& echo "cloud-init defaults: OK" \
 	|| { echo "cloud-init defaults: FAILED"; exit 1; }
@@ -36,7 +36,7 @@ This is what delivers the SSH keys and munge key to the node at boot:
 <!-- ohpc_comment Verify cloud-init compute group is uploaded -->
 ```bash
 ochami -k metadata group list -F yaml \
-	| grep -q "compute" \
+	| grep -qE "^ +name: compute$" \
 	&& echo "cloud-init group: OK" \
 	|| { echo "cloud-init group: FAILED"; exit 1; }
 ```
