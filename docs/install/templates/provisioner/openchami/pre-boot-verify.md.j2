@@ -46,12 +46,14 @@ Finally, confirm that the metadata-service resolves each compute node by its
 IP address. This is the lookup the node itself performs at boot, and the only
 check here that has to run after node discovery.
 
-The server answers `/metadata-service/meta-data` from SMD's Ethernet
-interfaces. In OpenCHAMI 0.2.0 the metadata-service resolves a miss live from
-SMD (cache-first with a live fallback), so a node discovered a moment before it
-boots should no longer get an empty answer. This probe still guards against a
-server that is not ready yet: wait for the lookup to succeed before powering the
-nodes on.
+The server answers `/metadata-service/meta-data` from a copy of SMD's Ethernet
+interfaces that it refreshes on a timer (about every 30 seconds), so a node
+registered a moment ago is not known to it yet. For an address it does not know,
+it still answers `200`, with the identity of another component. A node that
+boots into that window gets the wrong cloud-init data, which means no root SSH
+key and no munge key, and it never becomes reachable. So check the identity the
+server returns, not the status: wait until `instance-id` is the node's own xname
+before powering the nodes on.
 
 The request below is the one the node will send. `X-Forwarded-For` carries the
 node's address so that the server resolves the same entry; haproxy appends its
@@ -62,9 +64,10 @@ own entry to the header and the server reads the first.
 ```bash
 for ((i=0; i<num_computes; i++)); do
 	for ((t=0; ; t++)) ; do
-		curl -fsS -m 5 -o /dev/null \
+		curl -fsS -m 5 \
 			-H "X-Forwarded-For: ${c_ip[$i]}" \
-			"http://${sms_ip}:8081/metadata-service/meta-data" && break
+			"http://${sms_ip}:8081/metadata-service/meta-data" \
+			| grep -qx "instance-id: x1000c0s0b$((i+1))n0" && break
 		(( t < 18 )) || {
 			echo "cloud-init node: FAILED for ${c_name[$i]}"
 			exit 1
