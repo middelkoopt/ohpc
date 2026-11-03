@@ -42,40 +42,57 @@ ochami -k metadata group list -F yaml \
 ```
 <!-- ohpc_end -->
 
-Finally, confirm that the metadata-service resolves each compute node by its
-IP address. This is the lookup the node itself performs at boot, and the only
-check here that has to run after node discovery.
+Finally, confirm that the boot-service and the metadata-service both know each
+compute node. These are the two lookups the node itself performs at boot, and
+the only checks here that have to run after node discovery.
 
-The server answers `/metadata-service/meta-data` from a copy of SMD's Ethernet
-interfaces that it refreshes on a timer (about every 30 seconds), so a node
-registered a moment ago is not known to it yet. For an address it does not know,
-it still answers `200`, with the identity of another component. A node that
-boots into that window gets the wrong cloud-init data, which means no root SSH
-key and no munge key, and it never becomes reachable. So check the identity the
-server returns, not the status: wait until `instance-id` is the node's own xname
-before powering the nodes on.
+Neither service asks SMD when a node boots. Each answers from its own copy of
+SMD, which it refreshes on a timer, so a node registered a moment ago is not
+known to them yet:
 
-The request below is the one the node will send. `X-Forwarded-For` carries the
-node's address so that the server resolves the same entry; haproxy appends its
-own entry to the header and the server reads the first.
+- The boot-service syncs its nodes from SMD every 5 minutes by default
+  (`hsm_sync_interval`, in minutes, in `/etc/openchami/configs/boot-service.yaml`).
+  For a MAC it does not know yet, `/boot-service/bootscript` returns a script
+  that prints "Node resolution failed" and halts, so a node that boots into that
+  window stops and is not retried.
+- The metadata-service syncs every 60 seconds by default
+  (`--smd-sync-interval`). For an address it does not know, it still answers
+  `200` on `/metadata-service/meta-data`, with the identity of another
+  component. A node that gets this has no root SSH key and no munge key, and it
+  never becomes reachable.
+
+So check what each service returns, not the status: wait until the node's
+bootscript loads a kernel and its meta-data names the node's own xname before
+powering the nodes on. The wait can take up to the boot-service's sync interval.
+
+The requests below are the ones the node will send. `X-Forwarded-For` carries the
+node's address so that the metadata-service resolves the same entry; haproxy
+appends its own entry to the header and the server reads the first.
 
 <!-- ohpc_begin -->
-<!-- ohpc_comment Verify the metadata-service resolves each compute node -->
+<!-- ohpc_comment Verify the boot-service and metadata-service know each compute node -->
 ```bash
 for ((i=0; i<num_computes; i++)); do
 	for ((t=0; ; t++)) ; do
+		boot=0; meta=0
+		curl -fsS -m 5 \
+			"http://${sms_ip}:8081/boot-service/bootscript?mac=${c_mac[$i]}" \
+			| grep -q "^kernel " && boot=1
 		curl -fsS -m 5 \
 			-H "X-Forwarded-For: ${c_ip[$i]}" \
 			"http://${sms_ip}:8081/metadata-service/meta-data" \
-			| grep -qx "instance-id: x1000c0s0b$((i+1))n0" && break
-		(( t < 18 )) || {
-			echo "cloud-init node: FAILED for ${c_name[$i]}"
+			| grep -qx "instance-id: x1000c0s0b$((i+1))n0" && meta=1
+		(( boot && meta )) && break
+		(( t < 78 )) || {
+			echo "pre-boot node: FAILED for ${c_name[$i]}" \
+				"(boot-service=${boot} metadata-service=${meta})"
 			exit 1
 		}
-		echo "Waiting for cloud-init to resolve ${c_name[$i]}..."
+		echo "Waiting for ${c_name[$i]}:" \
+			"boot-service=${boot} metadata-service=${meta}"
 		sleep 5
 	done
 done
-echo "cloud-init node: OK"
+echo "pre-boot node: OK"
 ```
 <!-- ohpc_end -->
