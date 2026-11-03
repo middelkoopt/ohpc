@@ -7,8 +7,9 @@ to prevent lookups.
 <!-- ohpc_begin -->
 <!-- ohpc_comment OpenCHAMI No Proxy Settings -->
 ```bash
-export additonal_no_proxy="${sms_name},opaal,opaal-idp,smd,smd-init,\
-hydra,cloud-init,acme-deploy,bss,haproxy,postgres,step-ca,configurator"
+export additonal_no_proxy="${sms_name},smd,smd-init,boot-service,\
+metadata-service,tokensmith,acme-deploy,acme-register,haproxy,postgres,\
+step-ca,coresmd-coredhcp,coresmd-coredns"
 if [ -z "$no_proxy" ]; then
     export no_proxy="$additonal_no_proxy"
 else

@@ -1,18 +1,18 @@
 ## Verify Configuration Before Boot
 
-Before booting compute nodes, verify that BSS and cloud-init are configured
-correctly. These checks catch the most common failures before a wasted boot
-cycle.
+Before booting compute nodes, verify that boot-service and metadata-service are
+configured correctly. These checks catch the most common failures before a
+wasted boot cycle.
 
-First, confirm that BSS has the correct kernel parameters stored:
+First, confirm that boot-service has the correct kernel parameters stored:
 
 <!-- ohpc_begin -->
-<!-- ohpc_comment Verify BSS boot params are uploaded -->
+<!-- ohpc_comment Verify boot-service boot config is uploaded -->
 ```bash
-ochami -k bss boot params get \
+ochami -k boot config get -F yaml \
 	| grep -q "ds=nocloud-net" \
-	&& echo "BSS: OK" \
-	|| { echo "BSS: FAILED - check boot params"; exit 1; }
+	&& echo "boot-service: OK" \
+	|| { echo "boot-service: FAILED - check boot config"; exit 1; }
 ```
 <!-- ohpc_end -->
 
@@ -22,8 +22,8 @@ successfully:
 <!-- ohpc_begin -->
 <!-- ohpc_comment Verify cloud-init defaults are uploaded -->
 ```bash
-ochami -k cloud-init defaults get \
-	| grep -q "base-url" \
+ochami -k metadata defaults get \
+	| grep -q "base_url" \
 	&& echo "cloud-init defaults: OK" \
 	|| { echo "cloud-init defaults: FAILED"; exit 1; }
 ```
@@ -35,22 +35,22 @@ This is what delivers the SSH keys and munge key to the node at boot:
 <!-- ohpc_begin -->
 <!-- ohpc_comment Verify cloud-init compute group is uploaded -->
 ```bash
-ochami -k cloud-init group get raw compute \
+ochami -k metadata group list -F yaml \
 	| grep -q "compute" \
 	&& echo "cloud-init group: OK" \
 	|| { echo "cloud-init group: FAILED"; exit 1; }
 ```
 <!-- ohpc_end -->
 
-Finally, confirm that the cloud-init server resolves each compute node by its
+Finally, confirm that the metadata-service resolves each compute node by its
 IP address. This is the lookup the node itself performs at boot, and the only
 check here that has to run after node discovery.
 
-The server answers `/cloud-init/meta-data` from an in-memory map of SMD's
-Ethernet interfaces that it refreshes on a timer, so a node registered a moment
-ago is not visible to it yet. A node that boots into that window gets no
-cloud-init data at all, which means no root SSH key and no munge key, and it
-never becomes reachable. Wait for the lookup to succeed before powering the
+The server answers `/metadata-service/meta-data` from SMD's Ethernet
+interfaces. In OpenCHAMI 0.2.0 the metadata-service resolves a miss live from
+SMD (cache-first with a live fallback), so a node discovered a moment before it
+boots should no longer get an empty answer. This probe still guards against a
+server that is not ready yet: wait for the lookup to succeed before powering the
 nodes on.
 
 The request below is the one the node will send. `X-Forwarded-For` carries the
@@ -58,13 +58,13 @@ node's address so that the server resolves the same entry; haproxy appends its
 own entry to the header and the server reads the first.
 
 <!-- ohpc_begin -->
-<!-- ohpc_comment Verify the cloud-init server resolves each compute node -->
+<!-- ohpc_comment Verify the metadata-service resolves each compute node -->
 ```bash
 for ((i=0; i<num_computes; i++)); do
 	for ((t=0; ; t++)) ; do
 		curl -fsS -m 5 -o /dev/null \
 			-H "X-Forwarded-For: ${c_ip[$i]}" \
-			"http://${sms_ip}:8081/cloud-init/meta-data" && break
+			"http://${sms_ip}:8081/metadata-service/meta-data" && break
 		(( t < 18 )) || {
 			echo "cloud-init node: FAILED for ${c_name[$i]}"
 			exit 1
