@@ -465,7 +465,7 @@ dump_diagnostics() {
 	# server cannot resolve.
 	for ((i = 0; i < num_computes; i++)); do
 		echo "=== cloud-init meta-data as ${c_name[${i}]} ==="
-		curl -sS -o /dev/null -w '%{http_code}\n' \
+		curl -sS -m 5 -o /dev/null -w '%{http_code}\n' \
 			-H "X-Forwarded-For: ${c_ip[${i}]}" \
 			"http://${sms_ip:-192.168.100.1}:8081/cloud-init/meta-data" ||
 			true

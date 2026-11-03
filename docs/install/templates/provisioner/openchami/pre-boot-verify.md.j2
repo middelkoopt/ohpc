@@ -29,7 +29,7 @@ ochami -k cloud-init defaults get \
 ```
 <!-- ohpc_end -->
 
-Finally, confirm that the compute group cloud-init configuration is present.
+Next, confirm that the compute group cloud-init configuration is present.
 This is what delivers the SSH keys and munge key to the node at boot:
 
 <!-- ohpc_begin -->
@@ -62,7 +62,7 @@ own entry to the header and the server reads the first.
 ```bash
 for ((i=0; i<num_computes; i++)); do
 	for ((t=0; ; t++)) ; do
-		curl -fsS -o /dev/null \
+		curl -fsS -m 5 -o /dev/null \
 			-H "X-Forwarded-For: ${c_ip[$i]}" \
 			"http://${sms_ip}:8081/cloud-init/meta-data" && break
 		(( t < 18 )) || {
