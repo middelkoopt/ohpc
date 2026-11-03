@@ -51,10 +51,12 @@ SMD, which it refreshes on a timer, so a node registered a moment ago is not
 known to them yet:
 
 - The boot-service syncs its nodes from SMD every 5 minutes by default
-  (`hsm_sync_interval`, in minutes, in `/etc/openchami/configs/boot-service.yaml`).
-  For a MAC it does not know yet, `/boot-service/bootscript` returns a script
-  that prints "Node resolution failed" and halts, so a node that boots into that
-  window stops and is not retried.
+  (`hsm_sync_interval`, in minutes, in `/etc/openchami/configs/boot-service.yaml`),
+  and it also caches SMD's answers for 5 minutes, so every other sync reuses the
+  previous one: a new node can take up to about 10 minutes to appear. For a MAC
+  it does not know yet, `/boot-service/bootscript` returns a script that prints
+  "Node resolution failed" and halts, so a node that boots into that window
+  stops and is not retried.
 - The metadata-service syncs every 60 seconds by default
   (`--smd-sync-interval`). For an address it does not know, it still answers
   `200` on `/metadata-service/meta-data`, with the identity of another
@@ -63,7 +65,8 @@ known to them yet:
 
 So check what each service returns, not the status: wait until the node's
 bootscript loads a kernel and its meta-data names the node's own xname before
-powering the nodes on. The wait can take up to the boot-service's sync interval.
+powering the nodes on. The wait can take about 10 minutes, so the loop allows
+11.
 
 The requests below are the ones the node will send. `X-Forwarded-For` carries the
 node's address so that the metadata-service resolves the same entry; haproxy
@@ -83,7 +86,7 @@ for ((i=0; i<num_computes; i++)); do
 			"http://${sms_ip}:8081/metadata-service/meta-data" \
 			| grep -qx "instance-id: x1000c0s0b$((i+1))n0" && meta=1
 		(( boot && meta )) && break
-		(( t < 78 )) || {
+		(( t < 132 )) || {
 			echo "pre-boot node: FAILED for ${c_name[$i]}" \
 				"(boot-service=${boot} metadata-service=${meta})"
 			exit 1
