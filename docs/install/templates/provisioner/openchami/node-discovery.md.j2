@@ -85,28 +85,20 @@ ochami discover static \
 
 `ochami discover static` populates SMD components, EthernetInterfaces (under the correct
 node xname), and group membership from the `nodes.yaml` file in a single step.
-Confirm that each compute node's interface and each BMC's endpoint are there:
+Confirm that SMD lists each compute node's MAC address and each BMC's xname:
+
+```bash
+ochami -k smd iface get | jq -r '.[].MACAddress'
+ochami -k smd rfe get | jq -r '.RedfishEndpoints[].ID'
+```
 
 <!-- ohpc_begin -->
 <!-- ohpc_comment Verify the nodes are in SMD -->
-```bash
-for((i=0; i < $num_computes; i++)); do
-	ochami -k smd iface get \
-		| jq -e --arg m "${c_mac[$i]}" 'any(.[]; .MACAddress == $m)' >/dev/null \
-		|| { echo "SMD: FAILED, no interface for ${c_name[$i]}"; exit 1; }
-	ochami -k smd rfe get \
-		| jq -e --arg x "x1000c0s0b$((i+1))" 'any(.RedfishEndpoints[]; .ID == $x)' \
-		>/dev/null \
-		|| { echo "SMD: FAILED, no BMC endpoint for ${c_name[$i]}"; exit 1; }
-done
-echo "SMD: OK"
-```
-<!-- ohpc_end -->
-
-<!-- ohpc_begin -->
-<!-- ohpc_comment Wait for cloud-init to see the new nodes -->
-<!-- ohpc_command # FIXME: metadata-service reloads its node list from SMD once a minute, -->
-<!-- ohpc_command # so a node that boots right after discovery gets no cloud-init data. -->
-<!-- ohpc_command # Remove once OpenCHAMI's metadata-service refreshes the list on a miss. -->
-<!-- ohpc_command sleep 70 -->
+<!-- ohpc_command for((i=0; i < $num_computes; i++)); do -->
+<!-- ohpc_command     ochami -k smd iface get | jq -e --arg m "${c_mac[$i]}" 'any(.[]; .MACAddress == $m)' >/dev/null \ -->
+<!-- ohpc_command         || { echo "SMD: FAILED, no interface for ${c_name[$i]}"; exit 1; } -->
+<!-- ohpc_command     ochami -k smd rfe get | jq -e --arg x "x1000c0s0b$((i+1))" 'any(.RedfishEndpoints[]; .ID == $x)' >/dev/null \ -->
+<!-- ohpc_command         || { echo "SMD: FAILED, no BMC endpoint for ${c_name[$i]}"; exit 1; } -->
+<!-- ohpc_command done -->
+<!-- ohpc_command echo "SMD: OK" -->
 <!-- ohpc_end -->

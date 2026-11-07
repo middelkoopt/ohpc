@@ -65,47 +65,48 @@ known to them yet:
 
 So check what each service returns, not the status: wait until the node's
 bootscript loads a kernel and its meta-data names the node's own xname before
-powering the nodes on. The wait can take about 10 minutes, so the loop allows
-11.
+powering the nodes on. This can take about 10 minutes.
 
-The requests below are the ones the node will send. The bootscript request
-goes through haproxy, as the node's does. The meta-data request carries the
-node's address in `X-Forwarded-For` so that the server resolves the same entry,
-and it asks the metadata-service's container directly rather than through
-haproxy, because haproxy replaces `X-Forwarded-For` with the address the
-request came from, so through it the server would look up the head node
-instead. The node's own meta-data request through haproxy is tested when it
-boots. Both requests tell curl to ignore an `http_proxy` set in the
+These are the requests the node will send, here for the first compute node.
+The bootscript should contain a `kernel` line, and the meta-data an
+`instance-id` that is the node's own xname:
+
+```bash
+curl -s --noproxy '*' "http://${sms_ip}:8081/boot-service/bootscript?mac=${c_mac[0]}"
+metadata_ip=$(podman inspect --format \
+	'{%raw%}{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}{%endraw%}' \
+	metadata-service)
+curl -s --noproxy '*' -H "X-Forwarded-For: ${c_ip[0]}" \
+	"http://${metadata_ip}:8080/meta-data"
+```
+
+The bootscript request goes through haproxy, as the node's does. The meta-data
+request carries the node's address in `X-Forwarded-For` so that the server
+resolves the same entry, and it asks the metadata-service's container directly
+rather than through haproxy, because haproxy replaces `X-Forwarded-For` with
+the address the request came from, so through it the server would look up the
+head node instead. The node's own meta-data request through haproxy is tested
+when it boots. Both requests tell curl to ignore an `http_proxy` set in the
 environment: the container's address exists only on the head node, and a
 proxy cannot reach the podman network, so the request would time out there.
 
 <!-- ohpc_begin -->
-<!-- ohpc_comment Verify the boot-service and metadata-service know each compute node -->
-```bash
-metadata_ip=$(podman inspect --format \
-	'{%raw%}{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}{%endraw%}' \
-	metadata-service)
-for ((i=0; i<num_computes; i++)); do
-	for ((t=0; ; t++)) ; do
-		boot=0; meta=0
-		curl -fsS -m 5 --noproxy '*' \
-			"http://${sms_ip}:8081/boot-service/bootscript?mac=${c_mac[$i]}" \
-			| grep -q "^kernel " && boot=1
-		curl -fsS -m 5 --noproxy '*' \
-			-H "X-Forwarded-For: ${c_ip[$i]}" \
-			"http://${metadata_ip}:8080/meta-data" \
-			| grep -qx "instance-id: x1000c0s0b$((i+1))n0" && meta=1
-		(( boot && meta )) && break
-		(( t < 132 )) || {
-			echo "pre-boot node: FAILED for ${c_name[$i]}" \
-				"(boot-service=${boot} metadata-service=${meta})"
-			exit 1
-		}
-		echo "Waiting for ${c_name[$i]}:" \
-			"boot-service=${boot} metadata-service=${meta}"
-		sleep 5
-	done
-done
-echo "pre-boot node: OK"
-```
+<!-- ohpc_comment Wait until the boot-service and metadata-service know each compute node -->
+<!-- ohpc_command # FIXME: both services answer from copies of SMD refreshed on a timer; remove the -->
+<!-- ohpc_command # wait once they look up a node they do not know yet. -->
+<!-- ohpc_command metadata_ip=$(podman inspect --format '{%raw%}{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}{%endraw%}' metadata-service) -->
+<!-- ohpc_command for ((i=0; i<num_computes; i++)); do -->
+<!-- ohpc_command     for ((t=0; ; t++)); do -->
+<!-- ohpc_command         boot=0; meta=0 -->
+<!-- ohpc_command         curl -fsS -m 5 --noproxy '*' "http://${sms_ip}:8081/boot-service/bootscript?mac=${c_mac[$i]}" \ -->
+<!-- ohpc_command             | grep -q "^kernel " && boot=1 -->
+<!-- ohpc_command         curl -fsS -m 5 --noproxy '*' -H "X-Forwarded-For: ${c_ip[$i]}" "http://${metadata_ip}:8080/meta-data" \ -->
+<!-- ohpc_command             | grep -qx "instance-id: x1000c0s0b$((i+1))n0" && meta=1 -->
+<!-- ohpc_command         (( boot && meta )) && break -->
+<!-- ohpc_command         (( t < 132 )) || { echo "pre-boot node: FAILED for ${c_name[$i]} (boot-service=${boot} metadata-service=${meta})"; exit 1; } -->
+<!-- ohpc_command         echo "Waiting for ${c_name[$i]}: boot-service=${boot} metadata-service=${meta}" -->
+<!-- ohpc_command         sleep 5 -->
+<!-- ohpc_command     done -->
+<!-- ohpc_command done -->
+<!-- ohpc_command echo "pre-boot node: OK" -->
 <!-- ohpc_end -->
