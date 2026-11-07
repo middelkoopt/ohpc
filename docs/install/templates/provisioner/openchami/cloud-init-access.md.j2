@@ -1,17 +1,19 @@
 ## Limiting Access to cloud-init
 
-The cloud-init server gives each node its configuration, including the munge
-key, and its admin API changes that configuration for every node. haproxy
-publishes it on ports 8081 and 8443 of the head node. The steps below have
-haproxy answer `/cloud-init` only from privileged source ports (1-1023), which
-only root can use, and `/cloud-init/admin` only from the head node itself.
-podman's published ports keep the client's address and source port, so haproxy
-sees them as the client sent them.
+The metadata-service gives each node its cloud-init configuration, including
+the munge key, and its resource API (`groups`, `clusterdefaultss`,
+`instanceinfos` and `wireguardpeers`) changes that configuration for every
+node. Neither asks for a credential. haproxy publishes the service under
+`/metadata-service` on ports 8081 and 8443 of the head node. The steps below
+have haproxy answer `/metadata-service` only from privileged source ports
+(1-1023), which only root can use, and its resource API only from the head node
+itself. podman's published ports keep the client's address and source port, so
+haproxy sees them as the client sent them.
 
 Root on the compute nodes gets a privileged source port from the nftables rules
 in the compute image (see [Building the Base OS
 Image](#building-the-base-os-image)). Root on the head node gets one from the
-rules below, so `ochami cloud-init` commands keep working when run as root.
+rules below, so `ochami metadata` commands keep working when run as root.
 `ochami` connects to `https://${sms_name}:8443`, so the rules cover every IPv4
 address `${sms_name}` resolves to, as well as `${sms_ip}` (a container head, for
 example, also maps the name to its container address); the first step below
@@ -39,33 +41,36 @@ sysctl -q -p /etc/sysctl.d/90-ohpc-privports.conf
 <!-- ohpc_end -->
 
 First add the access rules to haproxy's `openchami` frontend, next to the
-`/cloud-init` path rule, check the configuration, and reload haproxy in place.
-haproxy's master process re-reads its configuration on `SIGUSR2`. Restarting
-`haproxy.service` instead also restarts the other services in
+`/metadata-service` path rule, check the configuration, and reload haproxy in
+place. haproxy's master process re-reads its configuration on `SIGUSR2`.
+Restarting `haproxy.service` instead also restarts the other services in
 `openchami.target`. Right after start-up those services can still be
 restarting, so the check and reload are retried until haproxy's container
 stays up long enough for both.
 
 <!-- ohpc_begin -->
-<!-- ohpc_comment Limit cloud-init to privileged source ports and its admin API to the head -->
+<!-- ohpc_comment Limit the metadata-service to privileged ports, its API to the head -->
 ```bash
 haproxy_cfg=/etc/openchami/configs/haproxy.cfg
-acl_file=/opt/ohpc/admin/haproxy/cloud-init-access.cfg
+acl_file=/opt/ohpc/admin/haproxy/metadata-access.cfg
 mkdir -p /opt/ohpc/admin/haproxy
 cat > "${acl_file}" <<EOF
-  # OpenHPC: /cloud-init only from privileged source ports, and
-  # /cloud-init/admin only from the head node
+  # OpenHPC: /metadata-service only from privileged source ports, and
+  # its resource API only from the head node
   acl SRC_privport src_port 1:1023
   acl SRC_head src ${sms_ip}
-  acl PATH_cloud-init-admin path_beg -i /cloud-init/admin
-  http-request deny deny_status 403 if PATH_cloud-init !SRC_privport
-  http-request deny deny_status 403 if PATH_cloud-init-admin !SRC_head
+  acl PATH_metadata-api path_beg -i /metadata-service/groups
+  acl PATH_metadata-api path_beg -i /metadata-service/clusterdefaultss
+  acl PATH_metadata-api path_beg -i /metadata-service/instanceinfos
+  acl PATH_metadata-api path_beg -i /metadata-service/wireguardpeers
+  http-request deny deny_status 403 if PATH_metadata-service !SRC_privport
+  http-request deny deny_status 403 if PATH_metadata-api !SRC_head
 EOF
 if ! grep -q 'acl SRC_privport' "${haproxy_cfg}"; then
-	sed -i "/^ *acl PATH_cloud-init path_beg/r ${acl_file}" "${haproxy_cfg}"
+	sed -i "/^ *acl PATH_metadata-service *path_beg/r ${acl_file}" "${haproxy_cfg}"
 fi
 grep -q 'acl SRC_privport' "${haproxy_cfg}" \
-	|| { echo "ERROR: cloud-init access rules not in ${haproxy_cfg}" >&2; exit 1; }
+	|| { echo "ERROR: metadata access rules not in ${haproxy_cfg}" >&2; exit 1; }
 for ((t=0; ; t++)); do
 	podman exec haproxy haproxy -c -q -f /usr/local/etc/haproxy/haproxy.cfg \
 		&& podman kill --signal USR2 haproxy >/dev/null && break
@@ -85,7 +90,7 @@ loads the rules at boot, not `nftables.service`: stopping or reloading that
 service flushes the whole ruleset, podman's own rules included.
 
 <!-- ohpc_begin -->
-<!-- ohpc_comment Head node source-port rules for cloud-init -->
+<!-- ohpc_comment Head node source-port rules for the metadata-service -->
 ```bash
 podman_nets=$(podman network inspect \
 	--format '{%raw%}{{range .Subnets}}{{.Subnet}} {{end}}{%endraw%}' \
@@ -114,7 +119,7 @@ table inet ohpc_sport {
 EOF
 cat > /etc/systemd/system/ohpc-sport.service <<EOF
 [Unit]
-Description=OpenHPC source-port rules for cloud-init
+Description=OpenHPC source-port rules for the metadata-service
 After=nftables.service
 Before=network-pre.target haproxy.service
 Wants=network-pre.target

@@ -1,18 +1,18 @@
 ## Verify Configuration Before Boot
 
-Before booting compute nodes, verify that BSS and cloud-init are configured
-correctly. These checks catch the most common failures before a wasted boot
-cycle.
+Before booting compute nodes, verify that boot-service and metadata-service are
+configured correctly. These checks catch the most common failures before a
+wasted boot cycle.
 
-First, confirm that BSS has the correct kernel parameters stored:
+First, confirm that boot-service has the correct kernel parameters stored:
 
 <!-- ohpc_begin -->
-<!-- ohpc_comment Verify BSS boot params are uploaded -->
+<!-- ohpc_comment Verify boot-service boot config is uploaded -->
 ```bash
-ochami -k bss boot params get \
+ochami -k boot config list -F yaml \
 	| grep -q "ds=nocloud-net" \
-	&& echo "BSS: OK" \
-	|| { echo "BSS: FAILED - check boot params"; exit 1; }
+	&& echo "boot-service: OK" \
+	|| { echo "boot-service: FAILED - check boot config"; exit 1; }
 ```
 <!-- ohpc_end -->
 
@@ -22,8 +22,8 @@ successfully:
 <!-- ohpc_begin -->
 <!-- ohpc_comment Verify cloud-init defaults are uploaded -->
 ```bash
-ochami -k cloud-init defaults get \
-	| grep -q "base-url" \
+ochami -k metadata defaults list -F yaml \
+	| grep -q "base_url" \
 	&& echo "cloud-init defaults: OK" \
 	|| { echo "cloud-init defaults: FAILED"; exit 1; }
 ```
@@ -35,25 +35,23 @@ This is what delivers the SSH keys and munge key to the node at boot:
 <!-- ohpc_begin -->
 <!-- ohpc_comment Verify cloud-init compute group is uploaded -->
 ```bash
-ochami -k cloud-init group get raw compute \
-	| grep -q "compute" \
+ochami -k metadata group list -F yaml \
+	| grep -qE "^ +name: compute$" \
 	&& echo "cloud-init group: OK" \
 	|| { echo "cloud-init group: FAILED"; exit 1; }
 ```
 <!-- ohpc_end -->
 
-Finally, confirm that the cloud-init server resolves each compute node by its
+Finally, confirm that the metadata-service resolves each compute node by its
 IP address. This is the lookup the node itself performs at boot, and the only
 check here that has to run after node discovery.
 
-The server answers `/cloud-init/meta-data` from an in-memory map of SMD's
+The metadata-service answers `/metadata-service/meta-data` from a copy of SMD's
 Ethernet interfaces that it refreshes on a timer, so a node registered a moment
-ago is not visible to it yet. A node that boots into that window gets no
-cloud-init data at all, which means no root SSH key and no munge key, and it
-never becomes reachable. Wait for the lookup to succeed before powering the
-nodes on.
+ago is not visible to it yet. Wait for the lookup to succeed before powering
+the nodes on.
 
-The check below asks the cloud-init server the question the node will ask, with
+The check below asks the metadata-service the question the node will ask, with
 `X-Forwarded-For` carrying the node's address so that the server resolves the
 same entry. It asks the server's container directly rather than through
 haproxy, because haproxy replaces `X-Forwarded-For` with the address the
@@ -64,24 +62,24 @@ curl to ignore an `http_proxy` set in the environment; a proxy cannot reach
 the podman network and the request would time out there.
 
 <!-- ohpc_begin -->
-<!-- ohpc_comment Verify the cloud-init server resolves each compute node -->
+<!-- ohpc_comment Verify the metadata-service resolves each compute node -->
 ```bash
-cloud_init_ip=$(podman inspect --format \
+metadata_ip=$(podman inspect --format \
 	'{%raw%}{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}{%endraw%}' \
-	cloud-init-server)
+	metadata-service)
 for ((i=0; i<num_computes; i++)); do
 	for ((t=0; ; t++)) ; do
 		curl -fsS -m 5 -o /dev/null --noproxy '*' \
 			-H "X-Forwarded-For: ${c_ip[$i]}" \
-			"http://${cloud_init_ip}:27777/meta-data" && break
+			"http://${metadata_ip}:8080/meta-data" && break
 		(( t < 18 )) || {
-			echo "cloud-init node: FAILED for ${c_name[$i]}"
+			echo "metadata-service node: FAILED for ${c_name[$i]}"
 			exit 1
 		}
-		echo "Waiting for cloud-init to resolve ${c_name[$i]}..."
+		echo "Waiting for the metadata-service to resolve ${c_name[$i]}..."
 		sleep 5
 	done
 done
-echo "cloud-init node: OK"
+echo "metadata-service node: OK"
 ```
 <!-- ohpc_end -->
