@@ -42,49 +42,70 @@ ochami -k metadata group list -F yaml \
 ```
 <!-- ohpc_end -->
 
-Finally, confirm that the metadata-service knows each compute node. This is the
-lookup the node itself performs at boot, and the only check here that has to
-run after node discovery.
+Finally, confirm that the boot-service and the metadata-service both know each
+compute node. These are the two lookups the node itself performs at boot, and
+the only checks here that have to run after node discovery.
 
-The metadata-service does not ask SMD when a node boots. It answers from its
-own copy of SMD's Ethernet interfaces, which it refreshes every 60 seconds by
-default (`--smd-sync-interval`), so a node registered a moment ago is not known
-to it yet. For an address it does not know, it still answers `200` on
-`/metadata-service/meta-data`, with the identity of another component. A node
-that gets this has no root SSH key and no munge key, and it never becomes
-reachable. So check what it returns, not the status: wait until the node's
-meta-data names the node's own xname before powering the nodes on.
+Neither service asks SMD when a node boots. Each answers from its own copy of
+SMD, which it refreshes on a timer, so a node registered a moment ago is not
+known to them yet:
 
-The check below asks the metadata-service the question the node will ask, with
-`X-Forwarded-For` carrying the node's address so that the server resolves the
-same entry. It asks the server's container directly rather than through
+- The boot-service syncs its nodes from SMD every 5 minutes by default
+  (`hsm_sync_interval`, in minutes, in `/etc/openchami/configs/boot-service.yaml`),
+  and it also caches SMD's answers for 5 minutes, so every other sync reuses the
+  previous one: a new node can take up to about 10 minutes to appear. For a MAC
+  it does not know yet, `/boot-service/bootscript` returns a script that prints
+  "Node resolution failed" and halts, so a node that boots into that window
+  stops and is not retried.
+- The metadata-service syncs every 60 seconds by default
+  (`--smd-sync-interval`). For an address it does not know, it still answers
+  `200` on `/metadata-service/meta-data`, with the identity of another
+  component. A node that gets this has no root SSH key and no munge key, and it
+  never becomes reachable.
+
+So check what each service returns, not the status: wait until the node's
+bootscript loads a kernel and its meta-data names the node's own xname before
+powering the nodes on. The wait can take about 10 minutes, so the loop allows
+11.
+
+The requests below are the ones the node will send. The bootscript request
+goes through haproxy, as the node's does. The meta-data request carries the
+node's address in `X-Forwarded-For` so that the server resolves the same entry,
+and it asks the metadata-service's container directly rather than through
 haproxy, because haproxy replaces `X-Forwarded-For` with the address the
 request came from, so through it the server would look up the head node
-instead. The node's own request through haproxy is tested when it boots.
-The container's address exists only on the head node, so the check tells
-curl to ignore an `http_proxy` set in the environment; a proxy cannot reach
-the podman network and the request would time out there.
+instead. The node's own meta-data request through haproxy is tested when it
+boots. Both requests tell curl to ignore an `http_proxy` set in the
+environment: the container's address exists only on the head node, and a
+proxy cannot reach the podman network, so the request would time out there.
 
 <!-- ohpc_begin -->
-<!-- ohpc_comment Verify the metadata-service knows each compute node -->
+<!-- ohpc_comment Verify the boot-service and metadata-service know each compute node -->
 ```bash
 metadata_ip=$(podman inspect --format \
 	'{%raw%}{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}{%endraw%}' \
 	metadata-service)
 for ((i=0; i<num_computes; i++)); do
 	for ((t=0; ; t++)) ; do
+		boot=0; meta=0
+		curl -fsS -m 5 --noproxy '*' \
+			"http://${sms_ip}:8081/boot-service/bootscript?mac=${c_mac[$i]}" \
+			| grep -q "^kernel " && boot=1
 		curl -fsS -m 5 --noproxy '*' \
 			-H "X-Forwarded-For: ${c_ip[$i]}" \
 			"http://${metadata_ip}:8080/meta-data" \
-			| grep -qx "instance-id: x1000c0s0b$((i+1))n0" && break
-		(( t < 18 )) || {
-			echo "metadata-service node: FAILED for ${c_name[$i]}"
+			| grep -qx "instance-id: x1000c0s0b$((i+1))n0" && meta=1
+		(( boot && meta )) && break
+		(( t < 132 )) || {
+			echo "pre-boot node: FAILED for ${c_name[$i]}" \
+				"(boot-service=${boot} metadata-service=${meta})"
 			exit 1
 		}
-		echo "Waiting for the metadata-service to know ${c_name[$i]}..."
+		echo "Waiting for ${c_name[$i]}:" \
+			"boot-service=${boot} metadata-service=${meta}"
 		sleep 5
 	done
 done
-echo "metadata-service node: OK"
+echo "pre-boot node: OK"
 ```
 <!-- ohpc_end -->
