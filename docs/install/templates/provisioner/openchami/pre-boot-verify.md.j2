@@ -42,14 +42,18 @@ ochami -k metadata group list -F yaml \
 ```
 <!-- ohpc_end -->
 
-Finally, confirm that the metadata-service resolves each compute node by its
-IP address. This is the lookup the node itself performs at boot, and the only
-check here that has to run after node discovery.
+Finally, confirm that the metadata-service knows each compute node. This is the
+lookup the node itself performs at boot, and the only check here that has to
+run after node discovery.
 
-The metadata-service answers `/metadata-service/meta-data` from a copy of SMD's
-Ethernet interfaces that it refreshes on a timer, so a node registered a moment
-ago is not visible to it yet. Wait for the lookup to succeed before powering
-the nodes on.
+The metadata-service does not ask SMD when a node boots. It answers from its
+own copy of SMD's Ethernet interfaces, which it refreshes every 60 seconds by
+default (`--smd-sync-interval`), so a node registered a moment ago is not known
+to it yet. For an address it does not know, it still answers `200` on
+`/metadata-service/meta-data`, with the identity of another component. A node
+that gets this has no root SSH key and no munge key, and it never becomes
+reachable. So check what it returns, not the status: wait until the node's
+meta-data names the node's own xname before powering the nodes on.
 
 The check below asks the metadata-service the question the node will ask, with
 `X-Forwarded-For` carrying the node's address so that the server resolves the
@@ -62,21 +66,22 @@ curl to ignore an `http_proxy` set in the environment; a proxy cannot reach
 the podman network and the request would time out there.
 
 <!-- ohpc_begin -->
-<!-- ohpc_comment Verify the metadata-service resolves each compute node -->
+<!-- ohpc_comment Verify the metadata-service knows each compute node -->
 ```bash
 metadata_ip=$(podman inspect --format \
 	'{%raw%}{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}{%endraw%}' \
 	metadata-service)
 for ((i=0; i<num_computes; i++)); do
 	for ((t=0; ; t++)) ; do
-		curl -fsS -m 5 -o /dev/null --noproxy '*' \
+		curl -fsS -m 5 --noproxy '*' \
 			-H "X-Forwarded-For: ${c_ip[$i]}" \
-			"http://${metadata_ip}:8080/meta-data" && break
+			"http://${metadata_ip}:8080/meta-data" \
+			| grep -qx "instance-id: x1000c0s0b$((i+1))n0" && break
 		(( t < 18 )) || {
 			echo "metadata-service node: FAILED for ${c_name[$i]}"
 			exit 1
 		}
-		echo "Waiting for the metadata-service to resolve ${c_name[$i]}..."
+		echo "Waiting for the metadata-service to know ${c_name[$i]}..."
 		sleep 5
 	done
 done
