@@ -56,11 +56,10 @@ next boot to the local disk:
 <!-- ohpc_begin -->
 <!-- ohpc_if_set has_ipmi -->
 <!-- ohpc_comment Boot from disk once the installer is running on every node -->
-<!-- ohpc_command install_start_timeout=${install_start_timeout:-600} -->
-<!-- ohpc_command deadline=$(( SECONDS + install_start_timeout )) -->
+<!-- ohpc_command deadline=$(( SECONDS + ${install_start_timeout:-600} )) -->
 <!-- ohpc_command while [ "$(lsdef compute -i status -c | grep -c "=installing$")" -ne "$num_computes" ]; do -->
 <!-- ohpc_command     if [ "$SECONDS" -ge "$deadline" ]; then -->
-<!-- ohpc_command         echo "ERROR: not all $num_computes nodes reached the installer in ${install_start_timeout}s" >&2 -->
+<!-- ohpc_command         echo "ERROR: not all $num_computes nodes reached the installer in ${install_start_timeout:-600}s" >&2 -->
 <!-- ohpc_command         lsdef compute -i status -c >&2 -->
 <!-- ohpc_command         exit 1 -->
 <!-- ohpc_command     fi -->
@@ -86,45 +85,29 @@ exit `rcons` is `Ctrl-e c .` typed sequentially. Deployment progress can also
 be queried with `nodestat compute`, which reports the installation state of
 each node until an `sshd` response indicates the node is up.
 
-Wait until every compute node has completed the installation and finished
-booting before proceeding. `sshd` starts before the rest of the boot completes,
-so waiting only for it lets the configuration steps below run against a node
-that still refuses logins and has not finished starting systemd. The loop below
-therefore requires every node to positively report a finished boot *and* to have
-lost the pre-reset marker, so that neither an unreachable node nor one still
-running the previous OS counts as ready. It gives up after `${install_timeout}`
-seconds (two hours by default) rather than waiting forever on an installation
-that failed:
+Continue after every compute node has completed the installation: `nodestat`
+reports `sshd` once a node has rebooted into its installed system. The
+installer itself answers SSH as well, so only `nodestat` tells the two apart.
+To check one node:
+
+```bash
+nodestat ${compute_prefix}1
+```
 
 <!-- ohpc_begin -->
-<!-- ohpc_comment Wait for compute nodes to complete the stateful install -->
-<!-- ohpc_command # Bound the wait so a failed install cannot hang the recipe forever. -->
-<!-- ohpc_command install_timeout=${install_timeout:-7200} -->
-<!-- ohpc_command deadline=$(( SECONDS + install_timeout )) -->
-<!-- ohpc_command while true; do -->
-<!-- ohpc_command     booted=$(nodestat compute | grep -c ": sshd" || true) -->
-<!-- ohpc_command     ready=0 -->
-<!-- ohpc_command     if [ "$booted" -eq "$num_computes" ]; then -->
-<!-- ohpc_command         # Require every node to report a finished boot. Counting -->
-<!-- ohpc_command         # positives means a refused or lost connection leaves the -->
-<!-- ohpc_command         # count short and keeps waiting, rather than reading as ready. -->
-<!-- ohpc_command         ready=$(xdsh compute "test ! -e /run/ohpc-preprovision \ -->
-<!-- ohpc_command             && systemctl is-system-running" 2>/dev/null \ -->
-<!-- ohpc_command             | grep -cE ": (running|degraded)" || true) -->
-<!-- ohpc_command         if [ "$ready" -eq "$num_computes" ]; then -->
-<!-- ohpc_command             break -->
-<!-- ohpc_command         fi -->
-<!-- ohpc_command     fi -->
-<!-- ohpc_command     if [ "$SECONDS" -ge "$deadline" ]; then -->
-<!-- ohpc_command         echo "ERROR: after ${install_timeout}s, $booted of $num_computes nodes" >&2 -->
-<!-- ohpc_command         echo "reported sshd and $ready of $num_computes finished booting." >&2 -->
-<!-- ohpc_command         echo "Inspect with: nodestat compute; rcons <node>" >&2 -->
+<!-- ohpc_comment Wait for the compute nodes to complete the stateful install -->
+<!-- ohpc_command deadline=$(( SECONDS + ${node_boot_timeout:-1800} )) -->
+<!-- ohpc_command until [ "$(nodestat compute | grep -c ": sshd" || true)" -eq "$num_computes" ]; do -->
+<!-- ohpc_command     if (( SECONDS >= deadline )); then -->
+<!-- ohpc_command         echo "stateful install: FAILED, not finished in ${node_boot_timeout:-1800}s; check nodestat compute, rcons <node>" -->
 <!-- ohpc_command         exit 1 -->
 <!-- ohpc_command     fi -->
-<!-- ohpc_command     echo "$booted of $num_computes compute nodes ready" -->
+<!-- ohpc_command     echo "Waiting for the stateful install..." -->
 <!-- ohpc_command     sleep 30 -->
 <!-- ohpc_command done -->
 <!-- ohpc_end -->
+
+{% include "boot/wait.md.j2" %}
 
 Once installed, verify access with a parallel command across the compute nodes
 using `xdsh`, xCAT's native distributed shell:

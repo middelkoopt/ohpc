@@ -66,15 +66,26 @@ if ! grep -q 'acl SRC_privport' "${haproxy_cfg}"; then
 fi
 grep -q 'acl SRC_privport' "${haproxy_cfg}" \
 	|| { echo "ERROR: cloud-init access rules not in ${haproxy_cfg}" >&2; exit 1; }
-for ((t=0; ; t++)); do
-	podman exec haproxy haproxy -c -q -f /usr/local/etc/haproxy/haproxy.cfg \
-		&& podman kill --signal USR2 haproxy >/dev/null && break
-	(( t < 12 )) || { echo "haproxy: reload FAILED"; exit 1; }
-	echo "Waiting for haproxy..."
-	sleep 5
-done
-echo "haproxy: reloaded"
 ```
+<!-- ohpc_end -->
+
+Check the configuration and reload haproxy, after its container is up:
+
+```bash
+podman exec haproxy haproxy -c -q -f /usr/local/etc/haproxy/haproxy.cfg \
+	&& podman kill --signal USR2 haproxy
+```
+
+<!-- ohpc_begin -->
+<!-- ohpc_comment Check and reload haproxy once its container stays up -->
+<!-- ohpc_command for ((t=0; ; t++)); do -->
+<!-- ohpc_command     podman exec haproxy haproxy -c -q -f /usr/local/etc/haproxy/haproxy.cfg \ -->
+<!-- ohpc_command         && podman kill --signal USR2 haproxy >/dev/null && break -->
+<!-- ohpc_command     (( t < 12 )) || { echo "haproxy: reload FAILED"; exit 1; } -->
+<!-- ohpc_command     echo "Waiting for haproxy..." -->
+<!-- ohpc_command     sleep 5 -->
+<!-- ohpc_command done -->
+<!-- ohpc_command echo "haproxy: reloaded" -->
 <!-- ohpc_end -->
 
 Then the head node's own rules. Root's connections to ports 8081 and 8443 on

@@ -1,4 +1,32 @@
+## Wait for Compute Nodes
+
+Continue after the compute nodes boot and complete their install. A node is
+ready when `systemd` has finished starting it; `degraded` counts too, since
+an image often carries a unit that fails harmlessly. To check one node:
+
+```bash
+ssh ${compute_prefix}1 systemctl is-system-running
+```
+
+The recipe waits for every node, for up to `node_boot_timeout` seconds. A node
+that is not ready by then has failed to provision; check its console. A node
+that still carries `/run/ohpc-preprovision` is still running the system it had
+before the reset, and is not counted.
+
 <!-- ohpc_begin -->
-<!-- ohpc_comment Allow for optional sleep to wait for provisioning to complete -->
-<!-- ohpc_command sleep "${provision_wait}" -->
+<!-- ohpc_comment Optional fixed wait before checking the compute nodes -->
+<!-- ohpc_command sleep "${provision_wait:-0}" -->
+<!-- ohpc_comment Wait for the compute nodes to finish booting -->
+<!-- ohpc_command deadline=$(( SECONDS + ${node_boot_timeout:-1800} )) -->
+<!-- ohpc_command until pdsh -S -w "${compute_prefix}[1-${num_computes}]" \ -->
+<!-- ohpc_command         "test ! -e /run/ohpc-preprovision && timeout 60 systemctl is-system-running --wait \ -->
+<!-- ohpc_command         | grep -qxE 'running|degraded'" >/dev/null 2>&1; do -->
+<!-- ohpc_command     if (( SECONDS >= deadline )); then -->
+<!-- ohpc_command         echo "compute nodes: FAILED, not booted in ${node_boot_timeout:-1800}s; check the node consoles" -->
+<!-- ohpc_command         exit 1 -->
+<!-- ohpc_command     fi -->
+<!-- ohpc_command     echo "Waiting for compute nodes..." -->
+<!-- ohpc_command     sleep 10 -->
+<!-- ohpc_command done -->
+<!-- ohpc_command echo "compute nodes: OK" -->
 <!-- ohpc_end -->
