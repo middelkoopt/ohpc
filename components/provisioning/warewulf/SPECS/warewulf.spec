@@ -55,7 +55,7 @@
 ## OHPC: edit-block; Name uses pname+delimiter; Group added
 Name:    %{pname}%{PROJ_DELIM}
 Summary: A provisioning system for large clusters of bare metal and/or virtual systems
-Version: 4.7.1
+Version: 4.7.2
 Release: 1%{?dist}
 License: BSD-3-Clause
 Group:   %{PROJ_NAME}/provisioning
