@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - 4.x
+      - tm-ci-docs-from-tree  # TEST ONLY
+      - tm-ci-docs-test  # TEST ONLY
   pull_request:
     branches:
       - 4.x
