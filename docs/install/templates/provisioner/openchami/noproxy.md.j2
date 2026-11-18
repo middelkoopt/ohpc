@@ -10,8 +10,8 @@ through a site proxy.
 <!-- ohpc_comment OpenCHAMI No Proxy Settings -->
 ```bash
 export additional_no_proxy="${sms_name},${sms_ip},localhost,127.0.0.1,\
-opaal,opaal-idp,smd,smd-init,hydra,cloud-init,acme-deploy,bss,haproxy,\
-postgres,step-ca,configurator"
+smd,smd-init,boot-service,metadata-service,tokensmith,acme-deploy,\
+acme-register,haproxy,postgres,step-ca,coresmd-coredhcp,coresmd-coredns"
 if [ -z "$no_proxy" ]; then
     export no_proxy="$additional_no_proxy"
 else

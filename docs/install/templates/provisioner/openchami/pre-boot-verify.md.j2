@@ -1,18 +1,18 @@
 ## Verify Configuration Before Boot
 
-Before booting compute nodes, verify that BSS and cloud-init are configured
-correctly. These checks catch the most common failures before a wasted boot
-cycle.
+Before booting compute nodes, verify that boot-service and metadata-service are
+configured correctly. These checks catch the most common failures before a
+wasted boot cycle.
 
-First, confirm that BSS has the correct kernel parameters stored:
+First, confirm that boot-service has the correct kernel parameters stored:
 
 <!-- ohpc_begin -->
-<!-- ohpc_comment Verify BSS boot params are uploaded -->
+<!-- ohpc_comment Verify boot-service boot config is uploaded -->
 ```bash
-ochami -k bss boot params get \
+ochami -k boot config list -F yaml \
 	| grep -q "ds=nocloud-net" \
-	&& echo "BSS: OK" \
-	|| { echo "BSS: FAILED - check boot params"; exit 1; }
+	&& echo "boot-service: OK" \
+	|| { echo "boot-service: FAILED - check boot config"; exit 1; }
 ```
 <!-- ohpc_end -->
 
@@ -22,8 +22,8 @@ successfully:
 <!-- ohpc_begin -->
 <!-- ohpc_comment Verify cloud-init defaults are uploaded -->
 ```bash
-ochami -k cloud-init defaults get \
-	| grep -q "base-url" \
+ochami -k metadata defaults list -F yaml \
+	| grep -q "base_url" \
 	&& echo "cloud-init defaults: OK" \
 	|| { echo "cloud-init defaults: FAILED"; exit 1; }
 ```
@@ -35,58 +35,82 @@ This is what delivers the SSH keys and munge key to the node at boot:
 <!-- ohpc_begin -->
 <!-- ohpc_comment Verify cloud-init compute group is uploaded -->
 ```bash
-ochami -k cloud-init group get raw compute \
-	| grep -q "compute" \
+ochami -k metadata group list -F yaml \
+	| grep -qE "^ +name: compute$" \
 	&& echo "cloud-init group: OK" \
 	|| { echo "cloud-init group: FAILED"; exit 1; }
 ```
 <!-- ohpc_end -->
 
-Finally, confirm that the cloud-init server resolves each compute node by its
-IP address. This is the lookup the node itself performs at boot, and the only
-check here that has to run after node discovery.
+Finally, confirm that the boot-service and the metadata-service both know each
+compute node. These are the two lookups the node itself performs at boot, and
+the only checks here that have to run after node discovery.
 
-The server answers `/cloud-init/meta-data` from an in-memory map of SMD's
-Ethernet interfaces that it refreshes on a timer, so a node registered a moment
-ago is not visible to it yet. A node that boots into that window gets no
-cloud-init data at all, which means no root SSH key and no munge key, and it
-never becomes reachable. Continue after the server resolves every node.
+Neither service asks SMD when a node boots. Each answers from its own copy of
+SMD, which it refreshes on a timer, so a node registered a moment ago is not
+known to them yet:
 
-The check asks the cloud-init server the question the node will ask, with
-`X-Forwarded-For` carrying the node's address so that the server resolves the
-same entry. It asks the server's container directly rather than through
-haproxy, because haproxy replaces `X-Forwarded-For` with the address the
-request came from, so through it the server would look up the head node
-instead. The node's own request through haproxy is tested when it boots.
-The container's address exists only on the head node, so the check tells
-curl to ignore an `http_proxy` set in the environment; a proxy cannot reach
-the podman network and the request would time out there. To check one node:
+- The boot-service syncs its nodes from SMD every 5 minutes by default
+  (`hsm_sync_interval`, in minutes, in `/etc/openchami/configs/boot-service.yaml`),
+  and it also caches SMD's answers for 5 minutes, so every other sync reuses the
+  previous one: a new node can take up to about 10 minutes to appear. For a MAC
+  it does not know yet, `/boot-service/bootscript` returns a script that prints
+  "Node resolution failed" and halts, so a node that boots into that window
+  stops and is not retried.
+- The metadata-service syncs every 60 seconds by default
+  (`--smd-sync-interval`). For an address it does not know, it still answers
+  `200` on `/metadata-service/meta-data`, with the identity of another
+  component. A node that gets this has no root SSH key and no munge key, and it
+  never becomes reachable.
+
+So check what each service returns, not the status: continue after each node's
+bootscript loads a kernel and its meta-data carries an `instance-id` that is
+the node's own xname. This can take about 10 minutes.
+
+The bootscript request goes through haproxy, as the node's does. The meta-data
+request carries the node's address in `X-Forwarded-For` so that the server
+resolves the same entry, and it asks the metadata-service's container directly
+rather than through haproxy, because haproxy replaces `X-Forwarded-For` with
+the address the request came from, so through it the server would look up the
+head node instead. The node's own meta-data request through haproxy is tested
+when it boots. Both requests tell curl to ignore an `http_proxy` set in the
+environment: the container's address exists only on the head node, and a
+proxy cannot reach the podman network, so the request would time out there.
 
 <!-- ohpc_begin -->
-<!-- ohpc_comment Find the cloud-init server's container address -->
+<!-- ohpc_comment Find the metadata-service's container address -->
 ```bash
-cloud_init_ip=$(podman inspect --format \
+metadata_ip=$(podman inspect --format \
 	'{%raw%}{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}{%endraw%}' \
-	cloud-init-server)
+	metadata-service)
 ```
 <!-- ohpc_end -->
 
+To check one node, the bootscript should contain a `kernel` line, and the
+meta-data an `instance-id` that is the node's own xname:
+
 ```bash
+curl -fsS --noproxy '*' "http://${sms_ip}:8081/boot-service/bootscript?mac=${c_mac[0]}"
 curl -fsS --noproxy '*' -H "X-Forwarded-For: ${c_ip[0]}" \
-	"http://${cloud_init_ip}:27777/meta-data"
+	"http://${metadata_ip}:8080/meta-data"
 ```
 
 <!-- ohpc_begin -->
-<!-- ohpc_comment Wait for the cloud-init server to resolve each compute node -->
+<!-- ohpc_comment Wait until the boot-service and metadata-service know each compute node -->
+<!-- ohpc_command # FIXME: both services answer from copies of SMD refreshed on a timer; remove the -->
+<!-- ohpc_command # wait once they look up a node they do not know yet. -->
 <!-- ohpc_command for ((i=0; i<num_computes; i++)); do -->
-<!-- ohpc_command     for ((t=0; ; t++)) ; do -->
-<!-- ohpc_command         curl -fsS -m 5 -o /dev/null --noproxy '*' \ -->
-<!-- ohpc_command             -H "X-Forwarded-For: ${c_ip[$i]}" \ -->
-<!-- ohpc_command             "http://${cloud_init_ip}:27777/meta-data" && break -->
-<!-- ohpc_command         (( t < 18 )) || { echo "cloud-init node: FAILED for ${c_name[$i]}"; exit 1; } -->
-<!-- ohpc_command         echo "Waiting for cloud-init to resolve ${c_name[$i]}..." -->
+<!-- ohpc_command     for ((t=0; ; t++)); do -->
+<!-- ohpc_command         boot=0; meta=0 -->
+<!-- ohpc_command         curl -fsS -m 5 --noproxy '*' "http://${sms_ip}:8081/boot-service/bootscript?mac=${c_mac[$i]}" \ -->
+<!-- ohpc_command             | grep -q "^kernel " && boot=1 -->
+<!-- ohpc_command         curl -fsS -m 5 --noproxy '*' -H "X-Forwarded-For: ${c_ip[$i]}" "http://${metadata_ip}:8080/meta-data" \ -->
+<!-- ohpc_command             | grep -qx "instance-id: x1000c0s0b$((i+1))n0" && meta=1 -->
+<!-- ohpc_command         (( boot && meta )) && break -->
+<!-- ohpc_command         (( t < 132 )) || { echo "pre-boot node: FAILED for ${c_name[$i]} (boot-service=${boot} metadata-service=${meta})"; exit 1; } -->
+<!-- ohpc_command         echo "Waiting for ${c_name[$i]}: boot-service=${boot} metadata-service=${meta}" -->
 <!-- ohpc_command         sleep 5 -->
 <!-- ohpc_command     done -->
 <!-- ohpc_command done -->
-<!-- ohpc_command echo "cloud-init node: OK" -->
+<!-- ohpc_command echo "pre-boot node: OK" -->
 <!-- ohpc_end -->
