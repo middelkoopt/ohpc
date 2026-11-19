@@ -159,10 +159,29 @@ slurm_node_config="${slurm_node_config:-NodeName=${compute_prefix}[1-${num_compu
 # additional arguments to enable optional arguments for bootstrap kernel
 kargs="${kargs:-acpi_pad.disable=1}"
 
-# Ethernet MTU for RoCE on the internal network, head node and computes (Warewulf recipe
-# only; empty leaves it unchanged). 4200 or more (e.g. 9000) gives RoCE MTU 4096; exactly
-# 4096 gives only RoCE MTU 2048
+# Ethernet MTU for RoCE, head node and computes (Warewulf recipe only; empty leaves it
+# unchanged). 4200 or more (e.g. 9000) gives RoCE MTU 4096; exactly 4096 gives only RoCE
+# MTU 2048
 roce_mtu="${roce_mtu:-}"
+
+# RoCE interface name on head node and computes when RoCE has a network of its own (e.g.
+# enp130s0f0np0; Warewulf and Confluent recipes); empty runs RoCE over the internal network
+roce_dev="${roce_dev:-}"
+
+# Subnet netmask for the RoCE network
+roce_netmask="${roce_netmask:-255.255.0.0}"
+
+# Subnet prefix length for the RoCE network (must be consistent with roce_netmask)
+roce_prefix_length="${roce_prefix_length:-16}"
+
+# RoCE address for head node; empty when the head node has no RoCE interface
+sms_roce="${sms_roce:-}"
+
+# RoCE addresses for computes
+c_roce[0]=${c_roce[0]:-192.168.2.1}
+c_roce[1]=${c_roce[1]:-192.168.2.2}
+c_roce[2]=${c_roce[2]:-192.168.2.3}
+c_roce[3]=${c_roce[3]:-192.168.2.4}
 
 # IPoIB interface name on head node and computes (e.g. ibp3s0 with predictable naming)
 ipoib_dev="${ipoib_dev:-ib0}"

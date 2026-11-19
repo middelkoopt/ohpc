@@ -1,0 +1,17 @@
+Warewulf's NetworkManager overlay configures the interface on each node from a
+second network device, `roce`:
+
+<!-- ohpc_begin -->
+<!-- ohpc_comment Optionally configure the RoCE network on compute nodes -->
+<!-- ohpc_if_set enable_roce -->
+<!-- ohpc_if [[ -n "${roce_dev}" ]] -->
+```bash
+for ((i=0; i<num_computes; i++)) ; do
+	wwctl node set --yes "${c_name[$i]}" --netname=roce --type=ethernet \
+		--netdev="${roce_dev}" --ipaddr="${c_roce[$i]}" \
+		--netmask="${roce_netmask}"
+done
+```
+<!-- ohpc_fi -->
+<!-- ohpc_fi -->
+<!-- ohpc_end -->

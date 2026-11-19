@@ -1,0 +1,9 @@
+## Optionally configure RoCE on *compute nodes*
+
+When RoCE has a network of its own (see [Optionally add RoCE support on *head
+node*](#optionally-add-roce-support-on-head-node)), give each compute its own
+address `${c_roce[i]}` on the RoCE interface `${roce_dev}`, with the
+`${roce_netmask}` netmask (`${roce_prefix_length}` prefix). These are per-node
+settings, so they belong in the {{ provisioner_name }} node definitions:
+
+{% include "provisioner/" ~ provisioner ~ "/compute-roce.md.j2" %}
