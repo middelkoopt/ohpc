@@ -623,34 +623,28 @@ For both patterns, document the new type in this section.
 
 The guide is read by a person and run as a script. The person sees the prose
 and the bash blocks; the script runs those blocks and also the hidden
-`ohpc_command` lines. Write for the person: every visible line is one they
-would want to read or type.
+`ohpc_command` lines. Write the visible part for the person, and keep the
+script's own logic in the hidden lines.
 
 ### What the Reader Sees
 
 - **Describe the system as it is.** Leave out its history ("which replaces
-  BSS", "from 0.2 on"); that belongs in the commit message and the ChangeLog.
-- **Show what a person would type.** A check is the command and what to look
-  for in its output ("the list includes `compute`"). The test that stops the
-  script goes in an `ohpc_command` line, not in the visible block: the script
-  runs under `set -e`, and each `ohpc_comment` is printed before the lines it
-  labels, so a failing command already shows where the script stopped. No
-  `&& echo OK || { echo FAILED; exit 1; }` in a visible block.
+  BSS", "from 0.2 on"): the reader installs the version in front of them, and
+  the history belongs in the commit message and the ChangeLog.
 - **Keep the prose general.** Say what a step does and why, at the level a
   reader acts on. Leave out a component's internals (sync intervals, config
   keys, timings) unless the reader needs them to act.
-- **Keep one site's needs out of the guide.** What a test site needs goes in
-  its `input.local`, in the site placeholders, or in the test harness, never
-  in a template.
-- **Give the why in the prose above a block.** A `#` comment inside the block
-  labels the code below it in one line, like an `ohpc_comment` ("Limit
-  cloud-init to privileged source ports and its admin API to the head"). Keep
-  a longer comment only for a gotcha in that exact line.
-- **Say a thing once.** The prose gives the reason and the condition, the
-  comment labels the code; neither repeats the other.
-- **Write a block in one style.** A list of YAML items or shell lines uses the
-  same form throughout, and the form most readers know: a long YAML item
-  continues on an indented line rather than in a `>-` block.
+- **Keep one site's needs out of the templates.** Every reader would type them;
+  they go in the site's `input.local`, the site placeholders, or the test
+  harness.
+- **Show a check as a command and what to look for in its output** ("the list
+  includes `compute`"), as a person would run it.
+- **Say a thing once.** The prose above a block gives the reason and the
+  condition; a `#` comment in the block labels the code below it in one line,
+  like an `ohpc_comment` ("Limit cloud-init to privileged source ports and its
+  admin API to the head"). A longer comment is only for a gotcha in that line.
+- **Write a block in one style,** in the form most readers know: a long YAML
+  list item continues on an indented line, not in a `>-` block.
 - **Avoid unnecessary escaping.** A backslash is something the reader has to
   decode; pick the quotes that make it unneeded. In a command that runs on
   another node, single quotes leave a variable for that node and double quotes
@@ -659,19 +653,23 @@ would want to read or type.
 - **Build a file in steps, not one long heredoc:** prose and a short block per
   step, or the `compute_*` macros, which also keep it the same across
   provisioners.
-- **Use the house idioms:** `sed -i`, not `perl -pi -e`; a provisioner's own
-  tools (`lsdef`, `chdef`) over parsing their output.
+- **Use the idioms the rest of the guide uses,** so a reader meets each one
+  once: `sed -i`, not `perl -pi -e`; a provisioner's own tools (`lsdef`,
+  `chdef`) over parsing their output.
 - **Match the voice of the sections around it:** measured, declarative,
   present tense, "Without this, …" for a consequence.
 
 ### What Only the Script Does
 
-- **Hidden lines are for the script's own work:** a test that stops the
-  script, the loop of a wait, a workaround. Label them with an `ohpc_comment`;
-  the prose describes what a person does and never the hidden code.
-- **A workaround for an upstream bug is hidden and marked:** an `ohpc_command`
-  with a `FIXME` comment that links the upstream issue, removed when the fix
-  ships. The prose describes the step as it should work.
+- **Put the test that stops the script in an `ohpc_command` line.** The script
+  runs under `set -e` and prints each `ohpc_comment` before the lines it
+  labels, so a failing command already shows where it stopped; the visible
+  block needs no `&& echo OK || { echo FAILED; exit 1; }`.
+- **Label hidden lines with an `ohpc_comment`,** and never describe them in the
+  prose.
+- **Mark a workaround for an upstream bug with a `FIXME`** that links the
+  upstream issue, and remove it when the fix ships. The prose describes the
+  step as it should work.
 
 ### Waiting for Nodes and Services
 
@@ -696,8 +694,8 @@ one, and it hides a failure until a later step trips over it.
   every provisioner includes after its own deployment step; don't repeat it
   in a provisioner's template.
 - **When nothing can be observed**, the fix belongs upstream in the
-  component. Until it lands, keep a fixed sleep with a `FIXME` comment that
-  links the upstream issue, and remove it when the fix ships.
+  component. Until it lands, keep a fixed sleep, marked as a workaround
+  (above).
 
 ### The Template Source
 
