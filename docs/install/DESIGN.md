@@ -391,52 +391,13 @@ dnf -y groupinstall "InfiniBand Support"
 <!-- ohpc_end -->
 ```
 
-**Who reads what.** The guide's reader sees the prose and the bash blocks;
-the recipe also runs the `ohpc_command` lines, which the reader never sees.
-So the prose describes what a person does, and never the hidden code; what
-only the recipe does is described in `ohpc_comment` lines.
-
-- **A `#` comment labels what the code below it does**, in one line, like an
-  `ohpc_comment` ("Limit cloud-init to privileged source ports and its admin
-  API to the head"). The why and how it works go in the prose above.
-- **Say a thing once.** The prose gives the reason and the condition, the
-  comment labels the code; neither repeats the other.
-- **Avoid unnecessary escaping.** A backslash is something the reader has to
-  decode; pick the quotes that make it unneeded. In a command that runs on
-  another node, single quotes leave a variable for that node and double quotes
-  expand the head node's settings, and a command that needs both joins the two
-  (`pdsh … 'rc=$?; [ $rc -eq 0 ] && grep -q '"${sms_ip}"' /etc/hosts'`).
+What belongs in the visible blocks and what in the hidden lines is in
+[Writing the Guide](#writing-the-guide).
 
 **Runtime vs. build-time conditionals:** `ohpc_if_set`/`ohpc_if` produce
 shell conditionals evaluated at install time (controlled by `input.local`
 variables). Jinja2 `{% if ... %}` controls what appears in the document
 at build time (controlled by recipe YAML flags). Use both as appropriate.
-
-#### Waiting for nodes and services
-
-A recipe waits for something to become true; it never sleeps for a fixed
-time. A fixed sleep is too long on a fast cluster and too short on a slow
-one, and it hides a failure until a later step trips over it.
-
-- **Poll a condition that can be observed**: a node finished booting, a
-  service answers, a user exists on every node. Bound the loop: a wait on
-  provisioning by a named timeout in `input.local.template`
-  (`node_boot_timeout`), a short step after the nodes are up by a fixed
-  limit. End it with a `FAILED` line that says what to check.
-- **Hide the loop, not the condition.** The loop goes in `ohpc_command`
-  lines, since a person at a shell waits by looking, not by looping. The
-  prose says what is being waited for in general terms ("After the nodes
-  boot and complete their install") and shows one command for one node
-  that a reader can copy and repeat, such as `ssh c1 systemctl
-  is-system-running`. Use hidden loops only for waits.
-- **Check every node**, with `pdsh -S -w "${compute_prefix}[1-${num_computes}]"`,
-  which fails if any node fails.
-- **One wait per condition.** The node boot wait is `boot/wait.md.j2`, which
-  every provisioner includes after its own deployment step; don't repeat it
-  in a provisioner's template.
-- **When nothing can be observed**, the fix belongs upstream in the
-  component. Until it lands, keep a fixed sleep with a `FIXME` comment that
-  links the upstream issue, and remove it when the fix ships.
 
 ### Site Pre-processing Placeholders
 
@@ -657,6 +618,92 @@ triggering a hypervisor reset while the script waits for the node to come up).
    ```
 
 For both patterns, document the new type in this section.
+
+## Writing the Guide
+
+The guide is read by a person and run as a script. The person sees the prose
+and the bash blocks; the script runs those blocks and also the hidden
+`ohpc_command` lines. Write for the person: every visible line is one they
+would want to read or type.
+
+### What the Reader Sees
+
+- **Describe the system as it is.** Leave out its history ("which replaces
+  BSS", "from 0.2 on"); that belongs in the commit message and the ChangeLog.
+- **Show what a person would type.** A check is the command and what to look
+  for in its output ("the list includes `compute`"). The test that stops the
+  script goes in an `ohpc_command` line, not in the visible block: the script
+  runs under `set -e`, and each `ohpc_comment` is printed before the lines it
+  labels, so a failing command already shows where the script stopped. No
+  `&& echo OK || { echo FAILED; exit 1; }` in a visible block.
+- **Keep the prose general.** Say what a step does and why, at the level a
+  reader acts on. Leave out a component's internals (sync intervals, config
+  keys, timings) unless the reader needs them to act.
+- **Keep one site's needs out of the guide.** What a test site needs goes in
+  its `input.local`, in the site placeholders, or in the test harness, never
+  in a template.
+- **Give the why in the prose above a block.** A `#` comment inside the block
+  labels the code below it in one line, like an `ohpc_comment` ("Limit
+  cloud-init to privileged source ports and its admin API to the head"). Keep
+  a longer comment only for a gotcha in that exact line.
+- **Say a thing once.** The prose gives the reason and the condition, the
+  comment labels the code; neither repeats the other.
+- **Write a block in one style.** A list of YAML items or shell lines uses the
+  same form throughout, and the form most readers know: a long YAML item
+  continues on an indented line rather than in a `>-` block.
+- **Avoid unnecessary escaping.** A backslash is something the reader has to
+  decode; pick the quotes that make it unneeded. In a command that runs on
+  another node, single quotes leave a variable for that node and double quotes
+  expand the head node's settings, and a command that needs both joins the two
+  (`pdsh … 'rc=$?; [ $rc -eq 0 ] && grep -q '"${sms_ip}"' /etc/hosts'`).
+- **Build a file in steps, not one long heredoc:** prose and a short block per
+  step, or the `compute_*` macros, which also keep it the same across
+  provisioners.
+- **Use the house idioms:** `sed -i`, not `perl -pi -e`; a provisioner's own
+  tools (`lsdef`, `chdef`) over parsing their output.
+- **Match the voice of the sections around it:** measured, declarative,
+  present tense, "Without this, …" for a consequence.
+
+### What Only the Script Does
+
+- **Hidden lines are for the script's own work:** a test that stops the
+  script, the loop of a wait, a workaround. Label them with an `ohpc_comment`;
+  the prose describes what a person does and never the hidden code.
+- **A workaround for an upstream bug is hidden and marked:** an `ohpc_command`
+  with a `FIXME` comment that links the upstream issue, removed when the fix
+  ships. The prose describes the step as it should work.
+
+### Waiting for Nodes and Services
+
+A recipe waits for something to become true; it never sleeps for a fixed
+time. A fixed sleep is too long on a fast cluster and too short on a slow
+one, and it hides a failure until a later step trips over it.
+
+- **Poll a condition that can be observed**: a node finished booting, a
+  service answers, a user exists on every node. Bound the loop: a wait on
+  provisioning by a named timeout in `input.local.template`
+  (`node_boot_timeout`), a short step after the nodes are up by a fixed
+  limit. End it with a `FAILED` line that says what to check.
+- **Hide the loop, not the condition.** The loop goes in `ohpc_command`
+  lines, since a person at a shell waits by looking, not by looping. The
+  prose says what is being waited for in general terms ("After the nodes
+  boot and complete their install") and shows one command for one node
+  that a reader can copy and repeat, such as `ssh c1 systemctl
+  is-system-running`. Use hidden loops only for waits.
+- **Check every node**, with `pdsh -S -w "${compute_prefix}[1-${num_computes}]"`,
+  which fails if any node fails.
+- **One wait per condition.** The node boot wait is `boot/wait.md.j2`, which
+  every provisioner includes after its own deployment step; don't repeat it
+  in a provisioner's template.
+- **When nothing can be observed**, the fix belongs upstream in the
+  component. Until it lands, keep a fixed sleep with a `FIXME` comment that
+  links the upstream issue, and remove it when the fix ships.
+
+### The Template Source
+
+- **Never split a `{{ … }}` across lines.** `wraptext.py` keeps each Jinja2
+  tag whole; split, the rendered line is no longer wrapped.
+- Line lengths: [Markdown Line Conventions](#markdown-line-conventions).
 
 ## Directory Structure
 
