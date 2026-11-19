@@ -3,6 +3,7 @@
 Skips: fenced code blocks, HTML comments, Jinja2 block/comment tags,
 table rows, headings, LaTeX commands, pandoc div markers.
 Wraps: prose paragraphs and list items (with correct continuation indent).
+Never splits an inline Jinja2 tag ({{ ... }}, {% ... %}) across lines.
 
 Usage:
     python wraptext.py <file.md.j2>          # wrap in-place
@@ -16,6 +17,8 @@ from pathlib import Path
 
 WIDTH = 80
 LIST_RE = re.compile(r"^(\s*)([-*+]|\d+\.)\s+")
+JINJA_RE = re.compile(r"\{\{.*?\}\}|\{%.*?%\}")
+KEEP = "\x00"  # stands for a space inside a Jinja2 tag while wrapping
 
 
 def is_verbatim(line: str) -> bool:
@@ -26,25 +29,32 @@ def is_verbatim(line: str) -> bool:
     )
 
 
+def keep_jinja(text: str) -> str:
+    """Make each inline Jinja2 tag one word, so a wrap never splits it."""
+    return JINJA_RE.sub(lambda m: m.group(0).replace(" ", KEEP), text)
+
+
 def wrap_block(lines: list[str], prefix: str | None) -> str:
     """Join accumulated lines and re-wrap to WIDTH."""
-    text = " ".join(line.strip() for line in lines if line.strip())
+    text = keep_jinja(" ".join(line.strip() for line in lines if line.strip()))
     if prefix is None:
-        return textwrap.fill(
+        wrapped = textwrap.fill(
             text,
             width=WIDTH,
             break_long_words=False,
             break_on_hyphens=False,
         )
-    subsequent = " " * len(prefix)
-    return textwrap.fill(
-        text,
-        width=WIDTH,
-        initial_indent=prefix,
-        subsequent_indent=subsequent,
-        break_long_words=False,
-        break_on_hyphens=False,
-    )
+    else:
+        subsequent = " " * len(prefix)
+        wrapped = textwrap.fill(
+            text,
+            width=WIDTH,
+            initial_indent=prefix,
+            subsequent_indent=subsequent,
+            break_long_words=False,
+            break_on_hyphens=False,
+        )
+    return wrapped.replace(KEEP, " ")
 
 
 def process(content: str) -> str:

@@ -7,11 +7,12 @@ appropriate source RPM, modify the spec file as needed, and rebuild to obtain an
 updated binary RPM. OpenHPC spec files contain macros to facilitate local
 customizations of compiler, compilation flags and MPI family. A brief example
 using the FFTW library is highlighted below.  Note that the source RPMs can be
-downloaded from the community repository server at [{{ ohpc_repo_server }}]({{
-ohpc_repo_server }}) via a web browser or directly via dnf as highlighted below.
-In this example we make an explicit change to FFTW's configuration, as well as
-modifying the CFLAGS environment variable. The package is also tagged with an
-additional delimiter to allow easy co-installation and use.
+downloaded from the community repository server at
+[{{ ohpc_repo_server }}]({{ ohpc_repo_server }}) via a web browser or directly
+via dnf as highlighted below. In this example we make an explicit change to
+FFTW's configuration, as well as modifying the CFLAGS environment variable. The
+package is also tagged with an additional delimiter to allow easy
+co-installation and use.
 
 ```bash
 # Install rpm-build package and dnf tools from base OS distro

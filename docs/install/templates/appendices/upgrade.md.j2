@@ -9,13 +9,13 @@ OpenHPC repositories have "`-ohpc`" appended to their names so that wild cards
 can be used as a simple way to obtain updates. The following general procedure
 highlights a method for upgrading existing installations. When upgrading from a
 minor release older than v{{ ohpc_version_tree }}, you will first need to update
-your local OpenHPC repository configuration to point against the v{{
-ohpc_version_tree }} release (or update your locally hosted mirror). Refer to an
-earlier section for more details on enabling the latest repository. In contrast,
-when upgrading between micro releases on the same branch (e.g. from v{{
-ohpc_version_tree }} to {{ ohpc_version_tree }}.2), there is no need to adjust
-local package manager configurations when using the public repository as rolling
-updates are pre-configured.
+your local OpenHPC repository configuration to point against the
+v{{ ohpc_version_tree }} release (or update your locally hosted mirror). Refer
+to an earlier section for more details on enabling the latest repository. In
+contrast, when upgrading between micro releases on the same branch (e.g. from
+v{{ ohpc_version_tree }} to {{ ohpc_version_tree }}.2), there is no need to
+adjust local package manager configurations when using the public repository as
+rolling updates are pre-configured.
 
 {% if is_openchami %}
 1. (Optional) Ensure repo metadata is current on the head node. Package managers
@@ -49,13 +49,13 @@ updates are pre-configured.
 {{ pkg_clean }}
 ```
 
-   For a stateful cluster, act on the running compute nodes:
+For a stateful cluster, act on the running compute nodes:
 
 ```bash
 xdsh compute dnf clean expire-cache
 ```
 
-   For a stateless cluster, act on the image chroot, re-deriving its location:
+For a stateless cluster, act on the image chroot, re-deriving its location:
 
 ```bash
 # Read the image the compute nodes were provisioned with
@@ -126,9 +126,9 @@ restart is required on the compute nodes.
 {% elif is_xcat %}
 3. Upgrade packages in the compute environment
 
-   For a stateful cluster, upgrade the running compute nodes. Note that to
-   update running services such as a resource manager, a service restart is
-   required on the compute nodes.
+For a stateful cluster, upgrade the running compute nodes. Note that to update
+running services such as a resource manager, a service restart is required on
+the compute nodes.
 
 ```bash
 xdsh compute dnf -y upgrade "*-ohpc"
@@ -138,8 +138,8 @@ xdsh compute dnf -y upgrade "*-ohpc"
 xdsh compute dnf -y upgrade "ohpc-base-compute"
 ```
 
-   For a stateless cluster, upgrade the image chroot, re-deriving its location
-   if it is not already set in the current shell:
+For a stateless cluster, upgrade the image chroot, re-deriving its location if
+it is not already set in the current shell:
 
 ```bash
 # Read the image the compute nodes were provisioned with
@@ -158,9 +158,9 @@ dnf -y --installroot="${CHROOT}" upgrade "ohpc-base-compute"
 
 4. Rebuild and redeploy the stateless image
 
-   This step applies to stateless provisioning only. In stateful mode the
-   upgrade above already ran on the compute nodes and there is no image to
-   rebuild. Reboot the compute nodes when convenient to pick up the new image.
+This step applies to stateless provisioning only. In stateful mode the upgrade
+above already ran on the compute nodes and there is no image to rebuild. Reboot
+the compute nodes when convenient to pick up the new image.
 
 ```bash
 rm -f ${CHROOT}/etc/munge/munge.key

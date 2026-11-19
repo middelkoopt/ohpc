@@ -21,12 +21,12 @@ suite is done using standard GNU autotools semantics and the
 number of individual unit tests. Some tests require privileged execution, so a
 different combination of tests will be enabled depending on which user executes
 the top-level `configure` script. Non-privileged tests requiring execution on
-one or more compute nodes are submitted as jobs through the {{ scheduler|upper
-}} resource manager. The tests are further divided into "short" and "long" run
-categories. The short run configuration is a subset of approximately 180 tests
-to demonstrate basic functionality of key components (e.g. MPI stacks) and
-should complete in 10-20 minutes. The long run (around 1000 tests) is
-comprehensive and can take an hour or more to complete.
+one or more compute nodes are submitted as jobs through the
+{{ scheduler|upper }} resource manager. The tests are further divided into
+"short" and "long" run categories. The short run configuration is a subset of
+approximately 180 tests to demonstrate basic functionality of key components
+(e.g. MPI stacks) and should complete in 10-20 minutes. The long run (around
+1000 tests) is comprehensive and can take an hour or more to complete.
 
 Most components can be tested individually, but a default configuration is setup
 to enable collective testing. To test an isolated component, use the `configure`

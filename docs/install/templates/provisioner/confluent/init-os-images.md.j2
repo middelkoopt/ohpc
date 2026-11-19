@@ -3,11 +3,11 @@
 With the provisioning services enabled, the next step is to define a system
 image that can subsequently be used to provision one or more *compute* nodes. To
 begin, you will first need to have a local copy of the ISO image available for
-the underlying OS. In this recipe, the relevant ISO image is `{{
-distro_iso_image }}` (available from the {{ distro_full_name }} [download]({{
-distro_download_page }}) page). We initialize the image creation process using
-the `osdeploy` command assuming that the necessary ISO image is available
-locally in `${iso_path}` as follows:
+the underlying OS. In this recipe, the relevant ISO image is
+`{{ distro_iso_image }}` (available from the {{ distro_full_name }}
+[download]({{ distro_download_page }}) page). We initialize the image creation
+process using the `osdeploy` command assuming that the necessary ISO image is
+available locally in `${iso_path}` as follows:
 
 The `osdeploy initialize` command is used to prepare a Confluent server to
 deploy operating systems. For first time setup, run osdeploy initialize
@@ -34,8 +34,8 @@ can be queried via:
 osdeploy list
 ```
 
-We now update the kernel arguments to remove the `quiet` option and add serial console.
-You could also add `debug` here as well to increase debug messages.
+We now update the kernel arguments to remove the `quiet` option and add serial
+console. You could also add `debug` here as well to increase debug messages.
 
 <!-- ohpc_begin -->
 ```bash
@@ -62,10 +62,10 @@ echo "/etc/hosts -> /etc/hosts" >> \
 ```
 <!-- ohpc_end -->
 
-If IPoIB will be configured on the compute nodes (see below), add `rdma-core`
-to the image's package list: Confluent configures only the interfaces present
-when a node first boots, and a minimal install lacks the package that loads the
-IPoIB driver.
+If IPoIB will be configured on the compute nodes (see below), add `rdma-core` to
+the image's package list: Confluent configures only the interfaces present when
+a node first boots, and a minimal install lacks the package that loads the IPoIB
+driver.
 
 <!-- ohpc_begin -->
 <!-- ohpc_comment Install the IPoIB driver loader with the OS -->

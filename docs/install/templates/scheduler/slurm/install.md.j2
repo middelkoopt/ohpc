@@ -24,17 +24,17 @@ sed -i "s/SlurmctldHost=\S\+/SlurmctldHost=${sms_name}/" \
 ```
 <!-- ohpc_end -->
 
-There are a wide variety of configuration options and plugins available for {{
-scheduler_name }} and the example config file illustrated above targets a fairly
-basic installation. In particular, job completion data will be stored in a text
-file (`/var/log/slurm_jobcomp.log`) that can be used to log simple accounting
-information. Sites who desire more detailed information, or want to aggregate
-accounting data from multiple clusters, will likely want to enable the database
-accounting back-end. This requires a number of additional local modifications
-(on top of installing `slurm-slurmdbd-ohpc`), and users are advised to consult
-the online [documentation](https://slurm.schedmd.com/accounting.html) for more
-detailed information on setting up a database configuration for {{
-scheduler_name }}.
+There are a wide variety of configuration options and plugins available for
+{{ scheduler_name }} and the example config file illustrated above targets a
+fairly basic installation. In particular, job completion data will be stored in
+a text file (`/var/log/slurm_jobcomp.log`) that can be used to log simple
+accounting information. Sites who desire more detailed information, or want to
+aggregate accounting data from multiple clusters, will likely want to enable the
+database accounting back-end. This requires a number of additional local
+modifications (on top of installing `slurm-slurmdbd-ohpc`), and users are
+advised to consult the online
+[documentation](https://slurm.schedmd.com/accounting.html) for more detailed
+information on setting up a database configuration for {{ scheduler_name }}.
 
 ::: {.tip}
 **Note:** SLURM requires enumeration of the physical hardware characteristics
