@@ -626,45 +626,62 @@ and the bash blocks; the script runs those blocks and also the hidden
 `ohpc_command` lines. Write the visible part for the person, and keep the
 script's own logic in the hidden lines.
 
+### Voice
+
+- **Write in the present tense, about the system as it is.** Leave out its
+  history: the reader installs the version in front of them, and the history
+  belongs in the commit message and the ChangeLog.
+- **Tell the reader what a step does, then show it.** Write the step as a
+  plain statement or an instruction, not as "we" and not as "issue the
+  following".
+- **Give a consequence as "Without this, …".**
+- **Write "head node" in plain text,** not in italics (`*head node*`), as the
+  [Terminology](#terminology) table does.
+- **Put an aside in a note box:** `::: {.tip}`, opening with `**Note:**`.
+
+Sections ported from the LaTeX guide still use "we" and an italic head node;
+rewrite one into this voice when a change touches it.
+
 ### What the Reader Sees
 
-- **Describe the system as it is.** Leave out its history ("which replaces
-  BSS", "from 0.2 on"): the reader installs the version in front of them, and
-  the history belongs in the commit message and the ChangeLog.
 - **Keep the prose general.** Say what a step does and why, at the level a
   reader acts on. Leave out a component's internals (sync intervals, config
   keys, timings) unless the reader needs them to act.
 - **Keep one site's needs out of the templates.** Every reader would type them;
   they go in the site's `input.local`, the site placeholders, or the test
   harness.
-- **Show a check as a command and what to look for in its output** ("the list
-  includes `compute`"), as a person would run it.
+- **Show a check as a command and what to look for in its output,** as a
+  person would run it.
 - **Say a thing once.** The prose above a block gives the reason and the
-  condition; a `#` comment in the block labels the code below it in one line,
-  like an `ohpc_comment` ("Limit cloud-init to privileged source ports and its
-  admin API to the head"). A longer comment is only for a gotcha in that line.
-- **Write a block in one style,** in the form most readers know: a long YAML
-  list item continues on an indented line, not in a `>-` block.
-- **Avoid unnecessary escaping.** A backslash is something the reader has to
-  decode; pick the quotes that make it unneeded. In a command that runs on
-  another node, single quotes leave a variable for that node and double quotes
-  expand the head node's settings, and a command that needs both joins the two
-  (`pdsh … 'rc=$?; [ $rc -eq 0 ] && grep -q '"${sms_ip}"' /etc/hosts'`).
-- **Build a file in steps, not one long heredoc:** prose and a short block per
-  step, or the `compute_*` macros, which also keep it the same across
-  provisioners.
-- **Use the idioms the rest of the guide uses,** so a reader meets each one
-  once: `sed -i`, not `perl -pi -e`; a provisioner's own tools (`lsdef`,
-  `chdef`) over parsing their output.
-- **Match the voice of the sections around it:** measured, declarative,
-  present tense, "Without this, …" for a consequence.
+  condition. A `#` comment in the block labels the lines below it in one
+  line, as an `ohpc_comment` does. A longer comment is only for a gotcha in
+  that line.
+- **Use the guide's idioms** (below), so a reader meets each one once.
+
+### Idioms
+
+| # | To | Write |
+| --- | --- | --- |
+| 1 | Install a package on the head node | `{{ pkg_install }} name`, never a distro's own `dnf` |
+| 2 | Change the compute image or definition | the `compute_*` macros ([Macro System](#macro-system)), which keep a step the same across provisioners |
+| 3 | Start a service | `systemctl enable --now name.service` |
+| 4 | Add a line to a file | `echo "line" >> /etc/file` |
+| 5 | Change a line in a file | `sed -i "s/old/new/" /etc/file`, not `perl -pi -e` |
+| 6 | Change a YAML file | `yq -i '.key = "value"' file` |
+| 7 | Write a short file whole | `cat > file <<EOF` … `EOF`, or `<<'EOF'` when nothing in it may expand; a file longer than a screen is built in steps instead, with prose and a short block for each |
+| 8 | Run a command on every compute node | `pdsh -S -w "${compute_prefix}[1-${num_computes}]" command`, which fails if any node fails |
+| 9 | Ask a provisioner about its nodes | its own query commands, not a parse of their output |
+| 10 | Name an `input.local` setting | `${name}`, braced; `${name:-default}` when it has a default ([input.local variables in commands](#inputlocal-variables-in-commands)) |
+| 11 | Put a head node value inside a single-quoted string | close the quotes around it rather than escape: `yq -i '.ipaddr = "'"${sms_ip}"'"' file` |
+| 12 | Run a command on another node | single quotes leave a variable for that node to expand, double quotes expand the head node's |
+| 13 | Break a long command | a trailing `\`, with the rest of the command indented one level |
 
 ### What Only the Script Does
 
 - **Put the test that stops the script in an `ohpc_command` line.** The script
   runs under `set -e` and prints each `ohpc_comment` before the lines it
-  labels, so a failing command already shows where it stopped; the visible
-  block needs no `&& echo OK || { echo FAILED; exit 1; }`.
+  labels, so a failing command already shows where it stopped. The visible
+  block needs no `OK`/`FAILED` echo of its own.
 - **Label hidden lines with an `ohpc_comment`,** and never describe them in the
   prose.
 - **Mark a workaround for an upstream bug with a `FIXME`** that links the
@@ -678,30 +695,23 @@ time. A fixed sleep is too long on a fast cluster and too short on a slow
 one, and it hides a failure until a later step trips over it.
 
 - **Poll a condition that can be observed**: a node finished booting, a
-  service answers, a user exists on every node. Bound the loop: a wait on
-  provisioning by a named timeout in `input.local.template`
-  (`node_boot_timeout`), a short step after the nodes are up by a fixed
-  limit. End it with a `FAILED` line that says what to check.
+  service answers, a user exists on every node.
+- **Bound every loop.** A wait on provisioning takes a named timeout from
+  `input.local.template`; a short step after the nodes are up takes a fixed
+  limit.
+- **End a loop that runs out with a `FAILED` line** that says what to check.
 - **Hide the loop, not the condition.** The loop goes in `ohpc_command`
   lines, since a person at a shell waits by looking, not by looping. The
-  prose says what is being waited for in general terms ("After the nodes
-  boot and complete their install") and shows one command for one node
-  that a reader can copy and repeat, such as `ssh c1 systemctl
-  is-system-running`. Use hidden loops only for waits.
-- **Check every node**, with `pdsh -S -w "${compute_prefix}[1-${num_computes}]"`,
-  which fails if any node fails.
+  prose says what is being waited for and shows one command for one node
+  that a reader can copy and repeat.
+- **Use hidden loops only for waits.**
+- **Check every node** (idiom 8).
 - **One wait per condition.** The node boot wait is `boot/wait.md.j2`, which
   every provisioner includes after its own deployment step; don't repeat it
   in a provisioner's template.
 - **When nothing can be observed**, the fix belongs upstream in the
   component. Until it lands, keep a fixed sleep, marked as a workaround
   (above).
-
-### The Template Source
-
-- **Never split a `{{ … }}` across lines.** `wraptext.py` keeps each Jinja2
-  tag whole; split, the rendered line is no longer wrapped.
-- Line lengths: [Markdown Line Conventions](#markdown-line-conventions).
 
 ## Directory Structure
 
@@ -950,6 +960,8 @@ rendered `build/*.md` if opened):
 - **MD013 line length — 80 columns for prose, 87 inside code blocks**
   (`code_block_line_length`), tables unlimited. Wrap recipe `bash` to 87 and
   prose to 80 so the rendered guide and its PDF stay within the page.
+  `python wraptext.py templates/<file>.md.j2` wraps a template's prose in
+  place, and `--check` exits 1 when it would change something.
 - **MD022 / MD031 / MD032 / MD041 disabled** — a rendered recipe's headings,
   fenced blocks, and lists abut the `ohpc_` HTML-comment markers, so the
   blank-line-around and first-line-heading rules do not apply.
