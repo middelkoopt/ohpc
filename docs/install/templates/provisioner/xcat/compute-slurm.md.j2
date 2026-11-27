@@ -20,7 +20,8 @@ node after every sync. It restarts both when the key changed, so once the key
 arrives at boot and again whenever a new key is synced with `updatenode -F`.
 It is listed under `EXECUTEALWAYS:` rather than `EXECUTE:` because xCAT refuses
 a synclist with `EXECUTE:` on a node without `rsync`, where it copies with
-`scp`, and the node then receives none of the files:
+`scp`, and the node then receives none of the files. For the same case it also
+sets the key's owner, which `scp` does not keep and munge requires:
 
 <!-- ohpc_begin -->
 <!-- ohpc_comment Restart munge and slurmd when the synced munge key changes -->
@@ -29,6 +30,7 @@ cat > ${xcat_synclist_dir}/ohpc-postsync << 'EOF'
 #!/bin/sh
 # Restart munge when the synced key changed (or munge is down), then slurmd
 key=/etc/munge/munge.key
+chown munge:munge "$key" && chmod 0400 "$key"
 sum=$(sha256sum "$key" 2>/dev/null | cut -d' ' -f1)
 if ! systemctl is-active -q munge.service || \
 	[ "$sum" != "$(cat /run/ohpc-munge.sum 2>/dev/null)" ]; then
